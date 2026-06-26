@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>SIM Retail POS</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            primary: { 50: '#eff6ff', 100: '#dbeafe', 200: '#bfdbfe', 300: '#93c5fd', 400: '#60a5fa', 500: '#3b82f6', 600: '#2563eb', 700: '#1d4ed8', 800: '#1e40af', 900: '#1e3a8a' }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    * { box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+    .screen { display: none; }
+    .screen.active { display: flex; flex-direction: column; }
+    .toast { position: fixed; top: 16px; left: 50%; transform: translateX(-50%); z-index: 999; padding: 12px 24px; border-radius: 12px; color: #fff; font-weight: 500; font-size: 14px; box-shadow: 0 4px 20px rgba(0,0,0,0.15); transition: opacity 0.3s; max-width: 90%; text-align: center; }
+    .toast-success { background: #059669; }
+    .toast-error { background: #dc2626; }
+    .toast-info { background: #2563eb; }
+    .stat-card { background: #fff; border-radius: 16px; padding: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+    .toggle-btn { transition: all 0.15s ease; }
+    .toggle-btn.selected { border-color: #3b82f6; background-color: #eff6ff; color: #1d4ed8; }
+    .toggle-btn:not(.selected) { border-color: #e5e7eb; background-color: #fff; color: #6b7280; }
+    .admin-tab { transition: all 0.15s ease; }
+    .admin-tab.active { background: #2563eb; color: #fff; }
+    .admin-tab:not(.active) { background: #fff; color: #374151; border: 1px solid #e5e7eb; }
+    .log-entry { border-bottom: 1px solid #f3f4f6; }
+    .log-entry:last-child { border-bottom: none; }
+  </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+
+<div id="toastContainer"></div>
+
+<!-- ============ SCREEN 0: Login ============ -->
+<div id="screen-login" class="screen active min-h-screen">
+  <div class="bg-gradient-to-br from-blue-600 to-blue-800 text-white px-6 pt-16 pb-12">
+    <h1 class="text-3xl font-bold">SIM Retail POS</h1>
+    <p class="text-blue-200 mt-2 text-sm">Staff Shift Management System</p>
+  </div>
+  <div class="flex-1 px-4 -mt-6">
+    <div class="bg-white rounded-2xl shadow-lg p-6">
+      <h2 class="text-lg font-semibold text-gray-800 mb-5">Staff Login</h2>
+      <form id="form-login">
+        <div class="mb-4">
+          <label class="block text-sm font-medium text-gray-600 mb-1.5">Username</label>
+          <input type="text" id="input-login-username" autocomplete="username" required
+                 class="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-gray-800"
+                 placeholder="Enter username">
+        </div>
+        <div class="mb-6">
+          <label class="block text-sm font-medium text-gray-600 mb-1.5">Password</label>
+          <input type="password" id="input-login-password" autocomplete="current-password" required
+                 class="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-gray-800"
+                 placeholder="Enter password">
+        </div>
+        <button type="submit"
+                class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3.5 rounded-xl transition duration-200 active:scale-[0.98]">
+          Sign In
+        </button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- ============ SCREEN 1: Open Shift ============ -->
+<div id="screen-open-shift" class="screen min-h-screen">
+  <div class="bg-gradient-to-br from-blue-600 to-blue-800 text-white px-6 pt-12 pb-10">
+    <div class="flex items-center justify-between">
+      <div>
+        <h1 class="text-2xl font-bold">Open New Shift</h1>
+        <p id="open-shift-user" class="text-blue-200 mt-1 text-sm"></p>
+      </div>
+      <button id="btn-logout-open" class="text-xs text-white/70 hover:text-white bg-white/10 px-3 py-1.5 rounded-lg">&larr; Logout</button>
+    </div>
+  </div>
+  <div class="flex-1 px-4 -mt-6">
+    <div class="bg-white rounded-2xl shadow-lg p-6">
+      <form id="form-open-shift">
+        <div class="mb-4">
+          <label class="block text-sm font-medium text-gray-600 mb-1.5">Branch</label>
+          <select id="input-branch" required
+                  class="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-gray-800 bg-white">
+            <option value="">Select a branch...</option>
+            <option value="កម្ពុជាក្រោម">កម្ពុជាក្រោម</option>
+            <option value="វីអាយភី">វីអាយភី</option>
+            <option value="អ៊ីអន">អ៊ីអន</option>
+            <option value="កាប់គោ">កាប់គោ</option>
+          </select>
+        </div>
+        <div class="mb-4">
+          <label class="block text-sm font-medium text-gray-600 mb-1.5">Opening Cash (USD)</label>
+          <div class="relative">
+            <span class="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 font-medium">$</span>
+            <input type="number" id="input-opening-usd" step="0.01" min="0" value="0"
+                   class="w-full pl-8 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-gray-800">
+          </div>
+        </div>
+        <div class="mb-6">
+          <label class="block text-sm font-medium text-gray-600 mb-1.5">Opening Cash (KHR)</label>
+          <div class="relative">
+            <span class="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 font-medium">៛</span>
+            <input type="number" id="input-opening-khr" step="100" min="0" value="0"
+                   class="w-full pl-8 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-gray-800">
+          </div>
+        </div>
+        <button type="submit"
+                class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3.5 rounded-xl transition duration-200 active:scale-[0.98]">
+          Start Shift
+        </button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- ============ SCREEN 2: Staff Dashboard ============ -->
+<div id="screen-dashboard" class="screen min-h-screen">
+  <div class="bg-gradient-to-br from-blue-600 to-blue-800 text-white px-6 pt-12 pb-6">
+    <div class="flex items-center justify-between">
+      <div>
+        <h1 class="text-2xl font-bold">Dashboard</h1>
+        <p id="dash-branch-name" class="text-blue-200 mt-0.5 text-sm font-medium"></p>
+      </div>
+      <div class="text-right">
+        <p id="dash-staff-name" class="text-xs text-blue-200"></p>
+        <p id="dash-shift-time" class="text-xs text-blue-300 mt-0.5"></p>
+        <button id="btn-logout-dash" class="text-xs text-white/60 hover:text-white mt-1">Logout</button>
+      </div>
+    </div>
+  </div>
+  <div class="flex-1 px-4 -mt-4 pb-24">
+    <div class="bg-white rounded-xl p-3 mb-3 border border-blue-100 flex items-center justify-between text-sm">
+      <div>
+        <span class="text-gray-500">Opening:</span>
+        <span class="font-semibold text-gray-800 ml-1" id="dash-opening-usd">$0.00</span>
+        <span class="text-gray-400 mx-1">/</span>
+        <span class="font-semibold text-gray-800" id="dash-opening-khr">៛0</span>
+      </div>
+      <span id="dash-shift-status" class="text-xs bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full font-medium">OPEN</span>
+    </div>
+    <div class="grid grid-cols-2 gap-3 mb-4">
+      <div class="stat-card">
+        <p class="text-xs font-medium text-gray-500 uppercase tracking-wide">USD Cash</p>
+        <p id="dash-usd-cash" class="text-xl font-bold text-gray-800 mt-1">$0.00</p>
+      </div>
+      <div class="stat-card">
+        <p class="text-xs font-medium text-gray-500 uppercase tracking-wide">USD Bank</p>
+        <p id="dash-usd-bank" class="text-xl font-bold text-gray-800 mt-1">$0.00</p>
+      </div>
+      <div class="stat-card">
+        <p class="text-xs font-medium text-gray-500 uppercase tracking-wide">KHR Cash</p>
+        <p id="dash-khr-cash" class="text-xl font-bold text-gray-800 mt-1">៛0</p>
+      </div>
+      <div class="stat-card">
+        <p class="text-xs font-medium text-gray-500 uppercase tracking-wide">KHR Bank</p>
+        <p id="dash-khr-bank" class="text-xl font-bold text-gray-800 mt-1">៛0</p>
+      </div>
+    </div>
+
+    <div class="flex gap-3 mb-4">
+      <button id="btn-new-transaction"
+              class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3.5 rounded-xl transition active:scale-[0.98]">
+        + New Transaction
+      </button>
+      <button id="btn-close-shift"
+              class="flex-1 bg-red-50 hover:bg-red-100 text-red-600 font-semibold py-3.5 rounded-xl border border-red-200 transition active:scale-[0.98]">
+        Close Shift
+      </button>
+    </div>
+
+    <div id="admin-nav-dash" class="hidden mb-4">
+      <button id="btn-go-admin-from-dash"
+              class="w-full bg-purple-600 hover:bg-purple-700 text-white font-semibold py-3 rounded-xl transition text-sm">
+        Open Admin Dashboard
+      </button>
+    </div>
+
+    <div>
+      <h3 class="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">Recent Transactions</h3>
+      <div id="txn-list" class="space-y-2">
+        <p class="text-gray-400 text-sm text-center py-8">No transactions yet</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ SCREEN 3: Transaction Form ============ -->
+<div id="screen-transaction" class="screen min-h-screen">
+  <div class="bg-gradient-to-br from-blue-600 to-blue-800 text-white px-6 pt-12 pb-6">
+    <div class="flex items-center gap-3">
+      <button id="btn-back-dashboard" class="text-white/80 hover:text-white text-xl">&larr;</button>
+      <h1 class="text-xl font-bold">New Transaction</h1>
+    </div>
+  </div>
+  <div class="flex-1 px-4 -mt-4">
+    <div class="bg-white rounded-2xl shadow-lg p-6">
+      <div class="mb-4 p-3 bg-blue-50 rounded-xl text-sm text-blue-800">
+        <span class="font-medium">Branch:</span> <span id="txn-branch-name">—</span>
+      </div>
+      <form id="form-transaction">
+        <div class="mb-4">
+          <label class="block text-sm font-medium text-gray-600 mb-1.5">Type</label>
+          <div class="grid grid-cols-2 gap-2">
+            <button type="button" id="btn-type-inflow"
+                    class="toggle-btn selected py-3 rounded-xl font-medium text-sm border-2"
+                    data-value="inflow">Inflow</button>
+            <button type="button" id="btn-type-outflow"
+                    class="toggle-btn py-3 rounded-xl font-medium text-sm border-2"
+                    data-value="outflow">Outflow</button>
+          </div>
+          <input type="hidden" id="input-type" value="inflow">
+        </div>
+        <div class="mb-4">
+          <label class="block text-sm font-medium text-gray-600 mb-1.5">Currency</label>
+          <div class="grid grid-cols-2 gap-2">
+            <button type="button" id="btn-currency-usd"
+                    class="toggle-btn selected py-3 rounded-xl font-medium text-sm border-2"
+                    data-value="USD">USD ($)</button>
+            <button type="button" id="btn-currency-khr"
+                    class="toggle-btn py-3 rounded-xl font-medium text-sm border-2"
+                    data-value="KHR">KHR (៛)</button>
+          </div>
+          <input type="hidden" id="input-currency" value="USD">
+        </div>
+        <div class="mb-4">
+          <label class="block text-sm font-medium text-gray-600 mb-1.5">Payment Method</label>
+          <div class="grid grid-cols-2 gap-2">
+            <button type="button" id="btn-method-cash"
+                    class="toggle-btn selected py-3 rounded-xl font-medium text-sm border-2"
+                    data-value="Cash">Cash</button>
+            <button type="button" id="btn-method-bank"
+                    class="toggle-btn py-3 rounded-xl font-medium text-sm border-2"
+                    data-value="Bank">Bank</button>
+          </div>
+          <input type="hidden" id="input-method" value="Cash">
+        </div>
+        <div class="mb-4">
+          <label class="block text-sm font-medium text-gray-600 mb-1.5">Amount</label>
+          <input type="number" id="input-amount" step="0.01" min="0.01" required
+                 class="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-gray-800 text-lg"
+                 placeholder="0.00">
+        </div>
+        <div class="mb-5">
+          <label class="block text-sm font-medium text-gray-600 mb-1.5">Cost / Expense (optional)</label>
+          <input type="number" id="input-cost" step="0.01" min="0" value="0"
+                 class="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-gray-800"
+                 placeholder="0.00">
+        </div>
+        <div class="mb-5">
+          <label class="block text-sm font-medium text-gray-600 mb-1.5">Invoice Photo (optional)</label>
+          <div class="border-2 border-dashed border-gray-200 rounded-xl p-4 text-center cursor-pointer hover:border-blue-400 transition"
+               id="upload-zone">
+            <input type="file" id="input-invoice" accept="image/*" capture="environment" class="hidden">
+            <div id="upload-placeholder">
+              <svg class="w-10 h-10 mx-auto text-gray-300 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"/></svg>
+              <p class="text-sm text-gray-400">Tap to capture or upload invoice</p>
+            </div>
+            <div id="upload-preview" class="hidden">
+              <img id="preview-image" class="max-h-40 mx-auto rounded-lg mb-2" alt="Invoice preview">
+              <p id="upload-status" class="text-xs text-gray-500"></p>
+            </div>
+          </div>
+          <input type="hidden" id="input-invoice-url">
+        </div>
+        <button type="submit"
+                class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3.5 rounded-xl transition duration-200 active:scale-[0.98]">
+          Record Transaction
+        </button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- ============ SCREEN 4: Close Shift ============ -->
+<div id="screen-close-shift" class="screen min-h-screen">
+  <div class="bg-gradient-to-br from-blue-600 to-blue-800 text-white px-6 pt-12 pb-6">
+    <div class="flex items-center gap-3">
+      <button id="btn-back-dashboard2" class="text-white/80 hover:text-white text-xl">&larr;</button>
+      <div>
+        <h1 class="text-xl font-bold">Close Shift</h1>
+        <p id="close-shift-info" class="text-blue-200 text-xs mt-0.5"></p>
+      </div>
+    </div>
+  </div>
+  <div class="flex-1 px-4 -mt-4">
+    <div class="bg-white rounded-2xl shadow-lg p-6">
+      <div class="mb-5 p-4 bg-blue-50 rounded-xl">
+        <p class="text-sm font-medium text-blue-800 mb-2">Expected Closing Balances</p>
+        <div class="flex justify-between text-sm">
+          <span class="text-blue-600">USD: <strong id="close-expected-usd">$0.00</strong></span>
+          <span class="text-blue-600">KHR: <strong id="close-expected-khr">៛0</strong></span>
+        </div>
+      </div>
+      <form id="form-close-shift">
+        <div class="mb-4">
+          <label class="block text-sm font-medium text-gray-600 mb-1.5">Actual Closing USD</label>
+          <div class="relative">
+            <span class="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 font-medium">$</span>
+            <input type="number" id="input-close-usd" step="0.01" min="0" required
+                   class="w-full pl-8 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-gray-800">
+          </div>
+        </div>
+        <div class="mb-6">
+          <label class="block text-sm font-medium text-gray-600 mb-1.5">Actual Closing KHR</label>
+          <div class="relative">
+            <span class="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 font-medium">៛</span>
+            <input type="number" id="input-close-khr" step="100" min="0" required
+                   class="w-full pl-8 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-gray-800">
+          </div>
+        </div>
+        <button type="submit"
+                class="w-full bg-red-600 hover:bg-red-700 text-white font-semibold py-3.5 rounded-xl transition duration-200 active:scale-[0.98]">
+          Confirm &amp; End Shift
+        </button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- ============ SCREEN 5: Admin Dashboard ============ -->
+<div id="screen-admin" class="screen min-h-screen">
+  <div class="bg-gradient-to-br from-purple-700 to-purple-900 text-white px-6 pt-12 pb-6">
+    <div class="flex items-center justify-between">
+      <div>
+        <h1 class="text-2xl font-bold">Admin Dashboard</h1>
+        <p id="admin-user-name" class="text-purple-200 mt-0.5 text-sm"></p>
+      </div>
+      <button id="btn-logout-admin" class="text-xs text-white/70 hover:text-white bg-white/10 px-3 py-1.5 rounded-lg">Logout</button>
+    </div>
+  </div>
+  <div class="flex-1 px-4 -mt-4 pb-24">
+    <div class="bg-white rounded-2xl shadow-lg p-4 mb-4">
+      <div class="flex items-center justify-between">
+        <div>
+          <p class="text-sm font-medium text-gray-600">Manage Staff</p>
+          <p id="admin-staff-count" class="text-xs text-gray-400 mt-0.5">0 staff accounts</p>
+        </div>
+        <button id="btn-show-create-user"
+                class="bg-green-600 hover:bg-green-700 text-white text-sm font-medium px-4 py-2 rounded-xl transition active:scale-[0.98]">
+          + New Staff
+        </button>
+      </div>
+      <form id="form-create-user" class="hidden mt-3 pt-3 border-t border-gray-100">
+        <div class="grid grid-cols-3 gap-2 mb-2">
+          <input type="text" id="input-new-username" placeholder="Username" required
+                 class="px-3 py-2 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none">
+          <input type="password" id="input-new-password" placeholder="Password" required
+                 class="px-3 py-2 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none">
+          <select id="input-new-role"
+                  class="px-3 py-2 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none bg-white">
+            <option value="staff">Staff</option>
+            <option value="admin">Admin</option>
+          </select>
+        </div>
+        <div class="flex gap-2">
+          <button type="submit"
+                  class="bg-green-600 hover:bg-green-700 text-white text-sm font-medium px-4 py-2 rounded-xl transition">
+            Create Account
+          </button>
+          <button type="button" id="btn-cancel-create-user"
+                  class="text-gray-500 text-sm px-3 py-2 hover:text-gray-700">Cancel</button>
+        </div>
+      </form>
+    </div>
+
+    <div class="bg-white rounded-2xl shadow-lg overflow-hidden mb-4">
+      <div class="grid grid-cols-3 gap-0">
+        <button id="admin-tab-shifts" class="admin-tab active py-3 text-sm font-medium text-center">Shifts</button>
+        <button id="admin-tab-transactions" class="admin-tab py-3 text-sm font-medium text-center">Transactions</button>
+        <button id="admin-tab-logs" class="admin-tab py-3 text-sm font-medium text-center">Activity Logs</button>
+      </div>
+    </div>
+
+    <!-- Section A: Shifts -->
+    <div id="admin-section-shifts" class="admin-section">
+      <div class="bg-white rounded-2xl shadow-lg p-4 mb-3">
+        <label class="block text-sm font-medium text-gray-600 mb-1.5">Filter by Branch</label>
+        <select id="admin-filter-branch"
+                class="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 outline-none text-gray-800 bg-white text-sm">
+          <option value="">All Branches</option>
+          <option value="កម្ពុជាក្រោម">កម្ពុជាក្រោម</option>
+          <option value="វីអាយភី">វីអាយភី</option>
+          <option value="អ៊ីអន">អ៊ីអន</option>
+          <option value="កាប់គោ">កាប់គោ</option>
+        </select>
+      </div>
+      <div id="admin-shifts-list" class="space-y-2">
+        <p class="text-gray-400 text-sm text-center py-8">Loading shifts...</p>
+      </div>
+    </div>
+
+    <!-- Section B: Transactions -->
+    <div id="admin-section-transactions" class="admin-section hidden">
+      <div id="admin-txns-list" class="space-y-2">
+        <p class="text-gray-400 text-sm text-center py-8">Loading transactions...</p>
+      </div>
+    </div>
+
+    <!-- Section C: Activity Logs -->
+    <div id="admin-section-logs" class="admin-section hidden">
+      <div id="admin-logs-list" class="bg-white rounded-2xl shadow-lg divide-y divide-gray-100">
+        <p class="text-gray-400 text-sm text-center py-8">Loading activity logs...</p>
+      </div>
+    </div>
+
+    <div class="mt-4">
+      <button id="btn-back-to-staff"
+              class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-xl transition text-sm">
+        Back to Staff Dashboard
+      </button>
+    </div>
+  </div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
