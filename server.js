@@ -347,19 +347,18 @@ async function sendTelegramPhoto(chatId, photoPath, caption, parseMode = 'Markdo
     if (parseMode) form.append('parse_mode', parseMode);
 
     const response = await axios.post(
-      `$https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendPhoto`,
+      `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendPhoto`,
       form,
       { headers: form.getHeaders() }
     );
-    console.log(`Telegram photo sent: ${photoPath}`);
-    return response.data;
     console.log(`Telegram photo sent: ${photoPath}`);
     return response.data;
   } catch (err) {
     console.error('Failed to send Telegram photo:', err);
     throw err;
   }
-}\n
+}
+
 async function sendTelegramShiftOpenAlert(shift) {
   if (!TELEGRAM_BOT_TOKEN || !TELEGRAM_CHAT_ID) {
     console.warn('Telegram not configured — skipping shift open alert');
@@ -549,87 +548,69 @@ async function sendTelegramTransactionAlert(txn, shift) {
     return;
   }
   try {
-    // Extract filename from invoice_url if present
-    let photoPath = null;
-    let caption = '';
-    if (txn.invoice_url) {
-      const filename = txn.invoice_url.substring(txn.invoice_url.lastIndexOf('/') + 1);
-      photoPath = require('path').join(__dirname, 'uploads', filename);
-      // Check if file exists
-      const fs = require('fs');
-      if (fs.existsSync(photoPath)) {
-        // Build caption
-        const sign = txn.type === 'inflow' ? '📈' : '📉';
-        const label = txn.type === 'inflow' ? 'Inflow' : 'Outflow';
-        const costLine = txn.cost > 0 ? 
-💸 *Cost:*  : '';
-        caption = [
-          ${sign} * \- *,
-          '',
-          🏢 *Branch:* ,
-          👤 *Staff:* ,
-          💰 *Amount:* ,
-          💳 *Method:* ,
-          costLine,
-          🕐 
-        ].filter(l => l !== '').join('
-');
-      }
-    }
-
-    if (photoPath) {
-      // Send as photo
-      await sendTelegramPhoto(TELEGRAM_CHAT_ID, photoPath, caption);
-      return;
-    }
-
-    // Fallback to text message
     const sign = txn.type === 'inflow' ? '📈' : '📉';
     const label = txn.type === 'inflow' ? 'Inflow' : 'Outflow';
-    const costLine = txn.cost > 0 ? 
-💸 *Cost:*  : '';
-    const invoiceLine = txn.invoice_url ? 
-📎 [View Invoice]() : '';
+    const branchName = shift && shift.branch_name ? shift.branch_name : 'N/A';
+    const staffName = shift && shift.staff_name ? shift.staff_name : 'N/A';
+    const amountStr = formatCurrency(txn.amount, txn.currency);
+    const methodStr = txn.payment_method || 'N/A';
+    const createdStr = txn.created_at || new Date().toISOString().replace('T', ' ').slice(0, 19);
 
-    const text = [
-      ${sign} * \- *,
+    const lines = [
+      `${sign} *${escapeMarkdown(label)} \\- ${escapeMarkdown(branchName)}*`,
       '',
-      🏢 *Branch:* ,
-      👤 *Staff:* ,
-      💰 *Amount:* ,
-      💳 *Method:* ,
-      costLine,
-      invoiceLine,
-      🕐 
-    ].filter(l => l !== '').join('
-');
+      `🏢 *Branch:* ${escapeMarkdown(branchName)}`,
+      `👤 *Staff:* ${escapeMarkdown(staffName)}`,
+      `💰 *Amount:* ${escapeMarkdown(amountStr)} \\(${escapeMarkdown(txn.currency)}\\)`,
+      `💳 *Method:* ${escapeMarkdown(methodStr)}`
+    ];
 
-    console.log(Sending Telegram transaction alert for shift # (: ));
+    if (Number(txn.cost) > 0) {
+      const costStr = formatCurrency(txn.cost, txn.currency);
+      lines.push(`💸 *Cost:* ${escapeMarkdown(costStr)} \\(${escapeMarkdown(txn.currency)}\\)`);
+    }
+
+    if (txn.invoice_url) {
+      lines.push(`📎 [View Invoice](${escapeMarkdown(txn.invoice_url)})`);
+    }
+
+    lines.push(`🕐 ${escapeMarkdown(createdStr)}`);
+
+    const text = lines.join('\n');
+
+    console.log(`Sending Telegram transaction alert for shift #${txn.shift_id} (txn ${txn.id})`);
     console.log('MESSAGE TEXT:', JSON.stringify(text));
 
-    const resp = await axios.post(https://api.telegram.org/bot/sendMessage, {
-      chat_id: TELEGRAM_CHAT_ID,
-      text,
-      parse_mode: 'MarkdownV2',
-      disable_web_page_preview: false
-    });
-
-    console.log(Telegram transaction alert sent (ok: ));
-  } catch (err) {
-    console.error('Failed to send transaction alert:', err.response?.data || err.message);
-    if (err.response?.data?.description?.includes('can\'t parse entities')) {
-      console.error('Markdown error in text — sending without parse_mode');
-      try {
-        const fallbackText = ${txn.type === 'inflow' ? '📈 Inflow' : '📉 Outflow'} - ;
-        const fallback = await axios.post(https://api.telegram.org/bot/sendMessage, {
+    try {
+      const resp = await axios.post(
+        `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`,
+        {
           chat_id: TELEGRAM_CHAT_ID,
-          text: fallbackText
-        });
+          text,
+          parse_mode: 'MarkdownV2',
+          disable_web_page_preview: false
+        }
+      );
+      console.log(`Telegram transaction alert sent (ok: ${resp.data && resp.data.ok})`);
+    } catch (sendErr) {
+      const description = sendErr.response && sendErr.response.data && sendErr.response.data.description;
+      if (description && description.includes("can't parse entities")) {
+        console.error('Markdown error in text — sending without parse_mode');
+        const fallbackText = `${txn.type === 'inflow' ? '📈 Inflow' : '📉 Outflow'} - ${branchName} | ${amountStr} via ${methodStr}`;
+        const fallback = await axios.post(
+          `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`,
+          {
+            chat_id: TELEGRAM_CHAT_ID,
+            text: fallbackText
+          }
+        );
         console.log('Fallback message sent');
-      } catch (fallbackErr) {
-        console.error('Fallback also failed:', fallbackErr);
+      } else {
+        throw sendErr;
       }
     }
+  } catch (err) {
+    console.error('Failed to send transaction alert:', err.response && err.response.data ? err.response.data : err.message);
   }
 }
 
