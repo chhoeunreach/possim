@@ -112,6 +112,22 @@
                    class="w-full pl-8 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-gray-800">
           </div>
         </div>
+        <div class="mb-6">
+          <label class="block text-sm font-medium text-gray-600 mb-1.5">Opening Photo <span class="text-gray-400 font-normal">(optional)</span></label>
+          <div class="border-2 border-dashed border-gray-200 rounded-xl p-4 text-center cursor-pointer hover:border-blue-400 transition"
+               id="upload-zone-opening">
+            <input type="file" id="input-opening-photo" accept="image/*" capture="environment" class="hidden">
+            <div id="upload-opening-placeholder">
+              <svg class="w-10 h-10 mx-auto text-gray-300 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"/></svg>
+              <p class="text-sm text-gray-400">Tap to capture or upload opening photo</p>
+            </div>
+            <div id="upload-opening-preview" class="hidden">
+              <img id="preview-opening-image" class="max-h-40 mx-auto rounded-lg mb-2" alt="Opening photo preview">
+              <p id="upload-opening-status" class="text-xs text-gray-500"></p>
+            </div>
+          </div>
+          <input type="hidden" id="input-opening-photo-url">
+        </div>
         <button type="submit"
                 class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3.5 rounded-xl transition duration-200 active:scale-[0.98]">
           Start Shift
@@ -255,13 +271,13 @@
                  placeholder="0.00">
         </div>
         <div class="mb-5">
-          <label class="block text-sm font-medium text-gray-600 mb-1.5">Invoice Photo (optional)</label>
+          <label class="block text-sm font-medium text-gray-600 mb-1.5">Invoice / Proof Photo</label>
           <div class="border-2 border-dashed border-gray-200 rounded-xl p-4 text-center cursor-pointer hover:border-blue-400 transition"
                id="upload-zone">
             <input type="file" id="input-invoice" accept="image/*" capture="environment" class="hidden">
             <div id="upload-placeholder">
               <svg class="w-10 h-10 mx-auto text-gray-300 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"/></svg>
-              <p class="text-sm text-gray-400">Tap to capture or upload invoice</p>
+              <p class="text-sm text-gray-400">Tap to capture or upload invoice / proof photo</p>
             </div>
             <div id="upload-preview" class="hidden">
               <img id="preview-image" class="max-h-40 mx-auto rounded-lg mb-2" alt="Invoice preview">
@@ -300,21 +316,63 @@
         </div>
       </div>
       <form id="form-close-shift">
-        <div class="mb-4">
-          <label class="block text-sm font-medium text-gray-600 mb-1.5">Actual Closing USD</label>
-          <div class="relative">
-            <span class="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 font-medium">$</span>
-            <input type="number" id="input-close-usd" step="0.01" min="0" required
-                   class="w-full pl-8 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-gray-800">
+        <div class="mb-5 p-4 bg-emerald-50 border border-emerald-200 rounded-xl">
+          <div class="flex items-center justify-between mb-2">
+            <p class="text-sm font-semibold text-emerald-800">Auto-calculated Closing</p>
+            <span class="text-xs text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full font-medium">Opening + Transactions</span>
+          </div>
+          <div class="grid grid-cols-2 gap-3 text-sm">
+            <div class="bg-white rounded-lg p-3 border border-emerald-100">
+              <p class="text-xs text-gray-500 mb-0.5">Actual USD</p>
+              <p class="text-base font-bold text-emerald-700" id="close-actual-usd-display">$0.00</p>
+            </div>
+            <div class="bg-white rounded-lg p-3 border border-emerald-100">
+              <p class="text-xs text-gray-500 mb-0.5">Actual KHR</p>
+              <p class="text-base font-bold text-emerald-700" id="close-actual-khr-display">៛0</p>
+            </div>
+          </div>
+          <p class="text-xs text-gray-500 mt-2">Computed from opening balance + all recorded inflows/outflows. Tap <span class="font-semibold">"Override"</span> to enter a different amount.</p>
+        </div>
+        <div class="mb-4 flex items-center justify-between">
+          <span class="text-xs font-medium text-gray-600">Manual override</span>
+          <button type="button" id="btn-toggle-close-override"
+                  class="text-xs text-blue-600 hover:text-blue-700 font-medium underline">
+            Override manually
+          </button>
+        </div>
+        <div id="close-override-section" class="hidden">
+          <div class="mb-4">
+            <label class="block text-sm font-medium text-gray-600 mb-1.5">Actual Closing USD <span class="text-gray-400 font-normal">(override)</span></label>
+            <div class="relative">
+              <span class="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 font-medium">$</span>
+              <input type="number" id="input-close-usd" step="0.01" min="0"
+                     class="w-full pl-8 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-gray-800">
+            </div>
+          </div>
+          <div class="mb-6">
+            <label class="block text-sm font-medium text-gray-600 mb-1.5">Actual Closing KHR <span class="text-gray-400 font-normal">(override)</span></label>
+            <div class="relative">
+              <span class="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 font-medium">៛</span>
+              <input type="number" id="input-close-khr" step="100" min="0"
+                     class="w-full pl-8 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-gray-800">
+            </div>
           </div>
         </div>
         <div class="mb-6">
-          <label class="block text-sm font-medium text-gray-600 mb-1.5">Actual Closing KHR</label>
-          <div class="relative">
-            <span class="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 font-medium">៛</span>
-            <input type="number" id="input-close-khr" step="100" min="0" required
-                   class="w-full pl-8 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-gray-800">
+          <label class="block text-sm font-medium text-gray-600 mb-1.5">Closing Photo <span class="text-gray-400 font-normal">(optional)</span></label>
+          <div class="border-2 border-dashed border-gray-200 rounded-xl p-4 text-center cursor-pointer hover:border-blue-400 transition"
+               id="upload-zone-closing">
+            <input type="file" id="input-closing-photo" accept="image/*" capture="environment" class="hidden">
+            <div id="upload-closing-placeholder">
+              <svg class="w-10 h-10 mx-auto text-gray-300 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"/></svg>
+              <p class="text-sm text-gray-400">Tap to capture or upload closing photo</p>
+            </div>
+            <div id="upload-closing-preview" class="hidden">
+              <img id="preview-closing-image" class="max-h-40 mx-auto rounded-lg mb-2" alt="Closing photo preview">
+              <p id="upload-closing-status" class="text-xs text-gray-500"></p>
+            </div>
           </div>
+          <input type="hidden" id="input-closing-photo-url">
         </div>
         <button type="submit"
                 class="w-full bg-red-600 hover:bg-red-700 text-white font-semibold py-3.5 rounded-xl transition duration-200 active:scale-[0.98]">
@@ -328,8 +386,14 @@
 <!-- ============ SCREEN 5: Admin Dashboard ============ -->
 <div id="screen-admin" class="screen min-h-screen">
   <div class="bg-gradient-to-br from-purple-700 to-purple-900 text-white px-6 pt-12 pb-6">
-    <div class="flex items-center justify-between">
-      <div>
+    <div class="flex items-center gap-3">
+      <button id="btn-back-to-staff-top"
+              class="flex items-center gap-1.5 text-white/80 hover:text-white text-sm font-medium bg-white/10 hover:bg-white/20 px-3 py-1.5 rounded-lg transition"
+              aria-label="Back to Staff Dashboard">
+        <span class="text-lg leading-none">&larr;</span>
+        <span>Staff</span>
+      </button>
+      <div class="flex-1">
         <h1 class="text-2xl font-bold">Admin Dashboard</h1>
         <p id="admin-user-name" class="text-purple-200 mt-0.5 text-sm"></p>
       </div>
@@ -369,6 +433,24 @@
                   class="text-gray-500 text-sm px-3 py-2 hover:text-gray-700">Cancel</button>
         </div>
       </form>
+    </div>
+
+    <div class="bg-white rounded-2xl shadow-lg overflow-hidden mb-4">
+      <div class="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+          <div>
+            <p class="text-sm font-medium text-gray-800">Staff / Users</p>
+            <p id="admin-users-count" class="text-xs text-gray-400 mt-0.5">0 accounts</p>
+          </div>
+          <div class="flex gap-2">
+            <input type="text" id="admin-users-search" placeholder="Search username..."
+                   class="px-3 py-1.5 border border-gray-200 rounded-lg text-xs focus:ring-2 focus:ring-purple-500 focus:border-purple-500 outline-none w-36">
+            <button id="btn-refresh-users"
+                    class="text-xs text-purple-700 bg-purple-50 hover:bg-purple-100 px-3 py-1.5 rounded-lg font-medium">Refresh</button>
+          </div>
+      </div>
+      <div id="admin-users-list" class="divide-y divide-gray-100">
+          <p class="text-gray-400 text-sm text-center py-8">Loading users...</p>
+      </div>
     </div>
 
     <div class="bg-white rounded-2xl shadow-lg overflow-hidden mb-4">
@@ -413,7 +495,7 @@
 
     <div class="mt-4">
       <button id="btn-back-to-staff"
-              class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-xl transition text-sm">
+              class="hidden w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-xl transition text-sm">
         Back to Staff Dashboard
       </button>
     </div>

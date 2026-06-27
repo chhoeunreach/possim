@@ -80,11 +80,17 @@ async function initSchema() {
       closing_usd DECIMAL(12,2) NULL,
       closing_khr DECIMAL(12,2) NULL,
       status VARCHAR(50) NOT NULL DEFAULT 'open',
+      opening_photo_url TEXT NULL,
+      closing_photo_url TEXT NULL,
       INDEX idx_shifts_user_id (user_id),
       INDEX idx_shifts_status (status),
       FOREIGN KEY (user_id) REFERENCES users(id)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
   `);
+
+  // Idempotent column adds for older databases created before opening_photo_url / closing_photo_url existed
+  try { await execute('ALTER TABLE shifts ADD COLUMN opening_photo_url TEXT NULL'); } catch (_) {}
+  try { await execute('ALTER TABLE shifts ADD COLUMN closing_photo_url TEXT NULL'); } catch (_) {}
 
   await execute(`
     CREATE TABLE IF NOT EXISTS transactions (
@@ -377,19 +383,29 @@ async function sendTelegramShiftOpenAlert(shift) {
       `🕐 ${escapeMarkdown(shift.start_time)}`
     ].join('\n');
 
-    console.log(`Sending Telegram shift open alert for shift #${shift.id}`);
-    console.log('MESSAGE TEXT:', JSON.stringify(text));
+    let photoPath = null;
+    if (shift.opening_photo_url) {
+      try {
+        const filename = path.basename(new URL(shift.opening_photo_url).pathname);
+        const candidate = path.join(__dirname, 'uploads', filename);
+        if (filename && fs.existsSync(candidate)) photoPath = candidate;
+      } catch (_) {
+        const filename = shift.opening_photo_url.substring(shift.opening_photo_url.lastIndexOf('/') + 1);
+        const candidate = path.join(__dirname, 'uploads', filename);
+        if (filename && fs.existsSync(candidate)) photoPath = candidate;
+      }
+    }
 
-    const resp = await axios.post(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
-      chat_id: TELEGRAM_CHAT_ID,
-      text,
-      parse_mode: 'MarkdownV2',
-      disable_web_page_preview: false
-    });
-
-    console.log(`Telegram shift open alert sent (ok: ${resp.data.ok})`);
+    if (photoPath) {
+      await sendTelegramPhoto(TELEGRAM_CHAT_ID, photoPath, text, null);
+    } else {
+      await axios.post(
+        `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`,
+        { chat_id: TELEGRAM_CHAT_ID, text, disable_web_page_preview: true }
+      );
+    }
   } catch (err) {
-    console.error('Failed to send shift open alert:', err.response?.data || err.message);
+    console.error('Failed to send shift open alert:', err.response && err.response.data ? err.response.data : err.message);
   }
 }
 
@@ -490,12 +506,29 @@ async function sendTelegramReport(shiftId) {
 
     const text = msg.join('\n');
 
-    await axios.post(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
-      chat_id: TELEGRAM_CHAT_ID,
-      text,
-      parse_mode: 'MarkdownV2',
-      disable_web_page_preview: false
-    });
+    let closingPhotoPath = null;
+    if (shift.closing_photo_url) {
+      try {
+        const filename = path.basename(new URL(shift.closing_photo_url).pathname);
+        const candidate = path.join(__dirname, 'uploads', filename);
+        if (filename && fs.existsSync(candidate)) closingPhotoPath = candidate;
+      } catch (_) {
+        const filename = shift.closing_photo_url.substring(shift.closing_photo_url.lastIndexOf('/') + 1);
+        const candidate = path.join(__dirname, 'uploads', filename);
+        if (filename && fs.existsSync(candidate)) closingPhotoPath = candidate;
+      }
+    }
+
+    if (closingPhotoPath) {
+      // Send as photo with plain-text caption (dynamic report content is fragile under MarkdownV2)
+      await sendTelegramPhoto(TELEGRAM_CHAT_ID, closingPhotoPath, text, null);
+    } else {
+      await axios.post(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
+        chat_id: TELEGRAM_CHAT_ID,
+        text,
+        disable_web_page_preview: false
+      });
+    }
 
     console.log(`Telegram report sent for shift #${shiftId}`);
   } catch (err) {
@@ -570,44 +603,40 @@ async function sendTelegramTransactionAlert(txn, shift) {
       lines.push(`💸 *Cost:* ${escapeMarkdown(costStr)} \\(${escapeMarkdown(txn.currency)}\\)`);
     }
 
-    if (txn.invoice_url) {
-      lines.push(`📎 [View Invoice](${escapeMarkdown(txn.invoice_url)})`);
-    }
-
     lines.push(`🕐 ${escapeMarkdown(createdStr)}`);
 
-    const text = lines.join('\n');
+    const caption = lines.join('\n');
 
-    console.log(`Sending Telegram transaction alert for shift #${txn.shift_id} (txn ${txn.id})`);
-    console.log('MESSAGE TEXT:', JSON.stringify(text));
+    // Resolve invoice photo path on disk if it was uploaded
+    let photoPath = null;
+    if (txn.invoice_url) {
+      let filename = null;
+      try {
+        filename = path.basename(new URL(txn.invoice_url).pathname);
+      } catch (_) {
+        filename = txn.invoice_url.substring(txn.invoice_url.lastIndexOf('/') + 1);
+      }
+      const candidate = path.join(__dirname, 'uploads', filename);
+      if (filename && fs.existsSync(candidate)) {
+        photoPath = candidate;
+      }
+    }
 
-    try {
+    console.log(`Sending Telegram transaction alert for shift #${txn.shift_id} (txn ${txn.id}) photo=${photoPath || 'none'}`);
+    console.log('MESSAGE TEXT:', JSON.stringify(caption));
+
+    if (photoPath) {
+      await sendTelegramPhoto(TELEGRAM_CHAT_ID, photoPath, caption, null);
+    } else {
       const resp = await axios.post(
         `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`,
         {
           chat_id: TELEGRAM_CHAT_ID,
-          text,
-          parse_mode: 'MarkdownV2',
+          text: caption,
           disable_web_page_preview: false
         }
       );
       console.log(`Telegram transaction alert sent (ok: ${resp.data && resp.data.ok})`);
-    } catch (sendErr) {
-      const description = sendErr.response && sendErr.response.data && sendErr.response.data.description;
-      if (description && description.includes("can't parse entities")) {
-        console.error('Markdown error in text — sending without parse_mode');
-        const fallbackText = `${txn.type === 'inflow' ? '📈 Inflow' : '📉 Outflow'} - ${branchName} | ${amountStr} via ${methodStr}`;
-        const fallback = await axios.post(
-          `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`,
-          {
-            chat_id: TELEGRAM_CHAT_ID,
-            text: fallbackText
-          }
-        );
-        console.log('Fallback message sent');
-      } else {
-        throw sendErr;
-      }
     }
   } catch (err) {
     console.error('Failed to send transaction alert:', err.response && err.response.data ? err.response.data : err.message);
@@ -616,7 +645,7 @@ async function sendTelegramTransactionAlert(txn, shift) {
 
 app.post('/api/shifts', authenticateToken, async (req, res) => {
   try {
-    const { branch_name, opening_usd, opening_khr } = req.body;
+    const { branch_name, opening_usd, opening_khr, opening_photo_url } = req.body;
 
     if (!branch_name || !branch_name.trim()) {
       return res.status(400).json({ error: 'Branch name is required' });
@@ -633,15 +662,20 @@ app.post('/api/shifts', authenticateToken, async (req, res) => {
     const usd = parseFloat(opening_usd) || 0;
     const khr = parseFloat(opening_khr) || 0;
     const now = new Date().toISOString().replace('T', ' ').slice(0, 19);
+    const photoUrl = (typeof opening_photo_url === 'string' && opening_photo_url.trim()) ? opening_photo_url.trim() : null;
 
     const result = await execute(
-      'INSERT INTO shifts (user_id, branch_name, start_time, opening_usd, opening_khr, status) VALUES (?, ?, ?, ?, ?, ?)',
-      [req.user.id, branch_name.trim(), now, usd, khr, 'open']
+      'INSERT INTO shifts (user_id, branch_name, start_time, opening_usd, opening_khr, status, opening_photo_url) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      [req.user.id, branch_name.trim(), now, usd, khr, 'open', photoUrl]
     );
 
     const shift = await queryOne('SELECT * FROM shifts WHERE id = ?', [result.insertId]);
 
-    await logActivity(req.user.id, 'Opened shift', `Opened shift for branch "${branch_name.trim()}" with $${usd.toFixed(2)} USD and ៛${khr} KHR`);
+    await logActivity(
+      req.user.id,
+      'Opened shift',
+      `Opened shift for branch "${branch_name.trim()}" with $${usd.toFixed(2)} USD and ៛${khr} KHR${photoUrl ? ' (photo attached)' : ''}`
+    );
 
     sendTelegramShiftOpenAlert(shift);
 
@@ -754,7 +788,7 @@ app.post('/api/transactions', authenticateToken, async (req, res) => {
 
 app.put('/api/shifts/:id/close', authenticateToken, async (req, res) => {
   try {
-    const { closing_usd, closing_khr } = req.body;
+    const { closing_usd, closing_khr, closing_photo_url } = req.body;
     const shift = await queryOne(
       'SELECT * FROM shifts WHERE id = ? AND user_id = ? AND status = ?',
       [req.params.id, req.user.id, 'open']
@@ -765,10 +799,11 @@ app.put('/api/shifts/:id/close', authenticateToken, async (req, res) => {
     const usd = parseFloat(closing_usd) || 0;
     const khr = parseFloat(closing_khr) || 0;
     const now = new Date().toISOString().replace('T', ' ').slice(0, 19);
+    const photoUrl = (typeof closing_photo_url === 'string' && closing_photo_url.trim()) ? closing_photo_url.trim() : null;
 
     await execute(
-      'UPDATE shifts SET closing_usd = ?, closing_khr = ?, end_time = ?, status = ? WHERE id = ?',
-      [usd, khr, now, 'closed', req.params.id]
+      'UPDATE shifts SET closing_usd = ?, closing_khr = ?, end_time = ?, status = ?, closing_photo_url = ? WHERE id = ?',
+      [usd, khr, now, 'closed', photoUrl, req.params.id]
     );
 
     const updated = await queryOne('SELECT * FROM shifts WHERE id = ?', [req.params.id]);
@@ -776,7 +811,7 @@ app.put('/api/shifts/:id/close', authenticateToken, async (req, res) => {
     const expectedUSD = parseFloat(shift.opening_usd);
     const actualUSD = usd;
     const diffUSD = actualUSD - expectedUSD;
-    const logDetail = `Closed shift for branch "${shift.branch_name}". Expected USD: ${formatCurrency(expectedUSD, 'USD')}, Actual USD: ${formatCurrency(actualUSD, 'USD')} (${diffUSD >= 0 ? '+' : ''}${formatCurrency(diffUSD, 'USD')})`;
+    const logDetail = `Closed shift for branch "${shift.branch_name}". Expected USD: ${formatCurrency(expectedUSD, 'USD')}, Actual USD: ${formatCurrency(actualUSD, 'USD')} (${diffUSD >= 0 ? '+' : ''}${formatCurrency(diffUSD, 'USD')})${photoUrl ? ' (photo attached)' : ''}`;
     await logActivity(req.user.id, 'Closed shift', logDetail);
 
     sendTelegramReport(req.params.id);
@@ -885,6 +920,109 @@ app.get('/api/admin/users', authenticateToken, requireAdmin, cacheResponse(30), 
     res.json(users);
   } catch (err) {
     console.error('Get users error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+app.put('/api/admin/users/:id', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const userId = parseInt(req.params.id, 10);
+    if (!userId) return res.status(400).json({ error: 'Invalid user id' });
+
+    const target = await queryOne('SELECT id, username, role FROM users WHERE id = ?', [userId]);
+    if (!target) return res.status(404).json({ error: 'User not found' });
+
+    const { username, password, role } = req.body;
+    const updates = [];
+    const params = [];
+
+    if (typeof username === 'string' && username.trim() && username.trim() !== target.username) {
+      const dup = await queryOne('SELECT id FROM users WHERE username = ? AND id <> ?', [username.trim(), userId]);
+      if (dup) return res.status(409).json({ error: 'Username already exists' });
+      updates.push('username = ?');
+      params.push(username.trim());
+    }
+
+    const validRoles = ['staff', 'admin'];
+    if (role !== undefined) {
+      if (!validRoles.includes(role)) return res.status(400).json({ error: 'Invalid role' });
+      if (role !== target.role) {
+        if (target.id === req.user.id && role !== 'admin') {
+          return res.status(400).json({ error: 'You cannot demote your own admin account' });
+        }
+        if (target.role === 'admin' && role !== 'admin') {
+          const adminCount = await queryOne("SELECT COUNT(*) AS c FROM users WHERE role = 'admin'");
+          if ((adminCount && adminCount.c <= 1)) {
+            return res.status(400).json({ error: 'Cannot demote the last admin' });
+          }
+        }
+        updates.push('role = ?');
+        params.push(role);
+      }
+    }
+
+    if (password !== undefined && password !== null && password !== '') {
+      if (typeof password !== 'string' || password.length < 4) {
+        return res.status(400).json({ error: 'Password must be at least 4 characters' });
+      }
+      const hash = bcrypt.hashSync(password, 10);
+      updates.push('password_hash = ?');
+      params.push(hash);
+    }
+
+    if (updates.length === 0) {
+      return res.json({ id: target.id, username: target.username, role: target.role });
+    }
+
+    params.push(userId);
+    await execute(`UPDATE users SET ${updates.join(', ')} WHERE id = ?`, params);
+
+    await logActivity(
+      req.user.id,
+      'Updated user',
+      `Updated user "${target.username}" (#${userId})${password ? ' (password changed)' : ''}${role && role !== target.role ? ` (role: ${target.role} → ${role})` : ''}`
+    );
+
+    const updated = await queryOne('SELECT id, username, role FROM users WHERE id = ?', [userId]);
+    res.json(updated);
+  } catch (err) {
+    console.error('Update user error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+app.delete('/api/admin/users/:id', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const userId = parseInt(req.params.id, 10);
+    if (!userId) return res.status(400).json({ error: 'Invalid user id' });
+    if (userId === req.user.id) {
+      return res.status(400).json({ error: 'You cannot delete your own account' });
+    }
+
+    const target = await queryOne('SELECT id, username, role FROM users WHERE id = ?', [userId]);
+    if (!target) return res.status(404).json({ error: 'User not found' });
+
+    if (target.role === 'admin') {
+      const adminCount = await queryOne("SELECT COUNT(*) AS c FROM users WHERE role = 'admin'");
+      if (adminCount && adminCount.c <= 1) {
+        return res.status(400).json({ error: 'Cannot delete the last admin' });
+      }
+    }
+
+    const txnCount = await queryOne('SELECT COUNT(*) AS c FROM transactions t JOIN shifts s ON s.id = t.shift_id WHERE s.user_id = ?', [userId]);
+    if (txnCount && txnCount.c > 0) {
+      return res.status(400).json({ error: 'Cannot delete user with existing shift transactions. Deactivate instead.' });
+    }
+    const shiftCount = await queryOne('SELECT COUNT(*) AS c FROM shifts WHERE user_id = ?', [userId]);
+    if (shiftCount && shiftCount.c > 0) {
+      return res.status(400).json({ error: 'Cannot delete user with existing shifts. Deactivate instead.' });
+    }
+
+    await execute('DELETE FROM users WHERE id = ?', [userId]);
+    await logActivity(req.user.id, 'Deleted user', `Deleted user "${target.username}" (#${userId})`);
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('Delete user error:', err);
     res.status(500).json({ error: 'Internal server error' });
   }
 });

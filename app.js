@@ -113,6 +113,8 @@
     getAdminLogs() { return this.request('GET', '/api/admin/logs'); },
     createUser(data) { return this.request('POST', '/api/admin/users', data); },
     getUsers() { return this.request('GET', '/api/admin/users'); },
+    updateUser(id, data) { return this.request('PUT', '/api/admin/users/' + id, data); },
+    deleteUser(id) { return this.request('DELETE', '/api/admin/users/' + id); },
 
     async uploadInvoice(file) {
       const token = getToken();
@@ -226,14 +228,18 @@
     const branch = $('input-branch').value;
     if (!branch) { showToast('Please select a branch', 'error'); return; }
 
+    const openingPhotoUrl = ($('input-opening-photo-url').value || '').trim() || null;
+
     try {
       const shift = await api.createShift({
         branch_name: branch,
         opening_usd: parseFloat($('input-opening-usd').value) || 0,
-        opening_khr: parseFloat($('input-opening-khr').value) || 0
+        opening_khr: parseFloat($('input-opening-khr').value) || 0,
+        opening_photo_url: openingPhotoUrl
       });
       state.currentShift = shift;
       showToast('Shift started at ' + shift.branch_name, 'success');
+      resetOpeningUpload();
       await loadDashboard();
       showScreen('screen-dashboard');
     } catch (err) {
@@ -393,6 +399,24 @@
     state.invoiceUrl = null;
   }
 
+  function resetOpeningUpload() {
+    $('input-opening-photo').value = '';
+    $('upload-opening-placeholder').classList.remove('hidden');
+    $('upload-opening-preview').classList.add('hidden');
+    $('preview-opening-image').src = '';
+    $('upload-opening-status').textContent = '';
+    $('input-opening-photo-url').value = '';
+  }
+
+  function resetClosingUpload() {
+    $('input-closing-photo').value = '';
+    $('upload-closing-placeholder').classList.remove('hidden');
+    $('upload-closing-preview').classList.add('hidden');
+    $('preview-closing-image').src = '';
+    $('upload-closing-status').textContent = '';
+    $('input-closing-photo-url').value = '';
+  }
+
   async function handleFileSelect(e) {
     const file = e.target.files[0];
     if (!file) return;
@@ -424,6 +448,66 @@
     }
   }
 
+  async function handleOpeningPhotoSelect(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    $('upload-opening-status').textContent = 'Compressing (' + formatBytes(file.size) + ')...';
+
+    try {
+      const compressed = await compressImage(file, 1024, 0.65);
+
+      const previewReader = new FileReader();
+      previewReader.onload = function (ev) {
+        $('preview-opening-image').src = ev.target.result;
+        $('upload-opening-placeholder').classList.add('hidden');
+        $('upload-opening-preview').classList.remove('hidden');
+      };
+      previewReader.readAsDataURL(compressed);
+
+      const sizeInfo = formatBytes(file.size) + ' → ' + formatBytes(compressed.size);
+      $('upload-opening-status').textContent = 'Uploading (' + sizeInfo + ')...';
+
+      const result = await api.uploadInvoice(compressed);
+      $('input-opening-photo-url').value = result.url;
+      $('upload-opening-status').textContent = 'Compressed: ' + sizeInfo + ' — Uploaded';
+      showToast('Opening photo uploaded (' + sizeInfo + ')', 'success');
+    } catch (err) {
+      showToast('Upload failed: ' + err.message, 'error');
+      $('upload-opening-status').textContent = 'Upload failed';
+    }
+  }
+
+  async function handleClosingPhotoSelect(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    $('upload-closing-status').textContent = 'Compressing (' + formatBytes(file.size) + ')...';
+
+    try {
+      const compressed = await compressImage(file, 1024, 0.65);
+
+      const previewReader = new FileReader();
+      previewReader.onload = function (ev) {
+        $('preview-closing-image').src = ev.target.result;
+        $('upload-closing-placeholder').classList.add('hidden');
+        $('upload-closing-preview').classList.remove('hidden');
+      };
+      previewReader.readAsDataURL(compressed);
+
+      const sizeInfo = formatBytes(file.size) + ' → ' + formatBytes(compressed.size);
+      $('upload-closing-status').textContent = 'Uploading (' + sizeInfo + ')...';
+
+      const result = await api.uploadInvoice(compressed);
+      $('input-closing-photo-url').value = result.url;
+      $('upload-closing-status').textContent = 'Compressed: ' + sizeInfo + ' — Uploaded';
+      showToast('Closing photo uploaded (' + sizeInfo + ')', 'success');
+    } catch (err) {
+      showToast('Upload failed: ' + err.message, 'error');
+      $('upload-closing-status').textContent = 'Upload failed';
+    }
+  }
+
   async function loadCloseShiftForm() {
     if (!requireAuth()) return;
     if (!state.currentShift) { showToast('No active shift', 'error'); return; }
@@ -445,13 +529,29 @@
       }
     }
 
-    const expectedUSD = state.currentShift.opening_usd + totalInUSD - totalOutUSD;
-    const expectedKHR = state.currentShift.opening_khr + totalInKHR - totalOutKHR;
+    const expectedUSD = parseFloat(state.currentShift.opening_usd || 0) + totalInUSD - totalOutUSD;
+    const expectedKHR = parseFloat(state.currentShift.opening_khr || 0) + totalInKHR - totalOutKHR;
+
+    state.autoCloseUSD = Math.max(0, expectedUSD);
+    state.autoCloseKHR = Math.max(0, expectedKHR);
+    state.closeOverridden = false;
 
     $('close-expected-usd').textContent = fmt(expectedUSD, 'USD');
     $('close-expected-khr').textContent = fmt(expectedKHR, 'KHR');
-    $('input-close-usd').value = expectedUSD > 0 ? expectedUSD.toFixed(2) : '0';
-    $('input-close-khr').value = expectedKHR > 0 ? String(Math.round(expectedKHR)) : '0';
+    $('close-actual-usd-display').textContent = fmt(state.autoCloseUSD, 'USD');
+    $('close-actual-khr-display').textContent = fmt(state.autoCloseKHR, 'KHR');
+
+    $('input-close-usd').value = state.autoCloseUSD > 0 ? state.autoCloseUSD.toFixed(2) : '0';
+    $('input-close-khr').value = state.autoCloseKHR > 0 ? String(Math.round(state.autoCloseKHR)) : '0';
+
+    const overrideSection = $('close-override-section');
+    const toggleBtn = $('btn-toggle-close-override');
+    if (overrideSection) overrideSection.classList.add('hidden');
+    if (toggleBtn) {
+      toggleBtn.textContent = 'Override manually';
+      toggleBtn.classList.remove('text-red-600', 'hover:text-red-700');
+      toggleBtn.classList.add('text-blue-600', 'hover:text-blue-700');
+    }
   }
 
   async function handleCloseShift(e) {
@@ -459,27 +559,61 @@
     if (!requireAuth()) return;
     if (!state.currentShift) { showToast('No active shift', 'error'); return; }
 
-    const usd = parseFloat($('input-close-usd').value);
-    const khr = parseFloat($('input-close-khr').value);
+    let usd, khr;
+    if (state.closeOverridden) {
+      usd = parseFloat($('input-close-usd').value);
+      khr = parseFloat($('input-close-khr').value);
+      if (isNaN(usd) || usd < 0) { showToast('Enter a valid closing USD amount', 'error'); return; }
+      if (isNaN(khr) || khr < 0) { showToast('Enter a valid closing KHR amount', 'error'); return; }
+    } else {
+      usd = state.autoCloseUSD || 0;
+      khr = state.autoCloseKHR || 0;
+    }
 
-    if (isNaN(usd) || usd < 0) { showToast('Enter a valid closing USD amount', 'error'); return; }
-    if (isNaN(khr) || khr < 0) { showToast('Enter a valid closing KHR amount', 'error'); return; }
+    const closingPhotoUrl = ($('input-closing-photo-url').value || '').trim() || null;
 
     try {
       await api.closeShift(state.currentShift.id, {
         closing_usd: usd,
-        closing_khr: khr
+        closing_khr: khr,
+        closing_photo_url: closingPhotoUrl
       });
       state.currentShift = null;
       state.transactions = [];
       state.invoiceUrl = null;
+      state.closeOverridden = false;
+      state.autoCloseUSD = 0;
+      state.autoCloseKHR = 0;
       showToast('Shift closed successfully! Report sent to Telegram.', 'success');
       $('input-branch').value = '';
       $('input-opening-usd').value = '0';
       $('input-opening-khr').value = '0';
+      resetClosingUpload();
       showScreen('screen-open-shift');
     } catch (err) {
       showToast(err.message, 'error');
+    }
+  }
+
+  function toggleCloseOverride() {
+    const section = $('close-override-section');
+    const btn = $('btn-toggle-close-override');
+    if (!section || !btn) return;
+    const isHidden = section.classList.contains('hidden');
+    if (isHidden) {
+      section.classList.remove('hidden');
+      state.closeOverridden = true;
+      btn.textContent = 'Use auto-calculated';
+      btn.classList.remove('text-blue-600', 'hover:text-blue-700');
+      btn.classList.add('text-red-600', 'hover:text-red-700');
+    } else {
+      section.classList.add('hidden');
+      state.closeOverridden = false;
+      btn.textContent = 'Override manually';
+      btn.classList.remove('text-red-600', 'hover:text-red-700');
+      btn.classList.add('text-blue-600', 'hover:text-blue-700');
+      $('input-close-usd').value = state.autoCloseUSD > 0 ? state.autoCloseUSD.toFixed(2) : '0';
+      $('input-close-khr').value = state.autoCloseKHR > 0 ? String(Math.round(state.autoCloseKHR)) : '0';
     }
   }
 
@@ -516,6 +650,7 @@
     switchAdminTab('shifts');
     loadAdminShifts();
     loadStaffCount();
+    loadUsersList();
   }
 
   function switchAdminTab(tab) {
@@ -587,6 +722,154 @@
       const staff = users.filter(u => u.role === 'staff');
       $('admin-staff-count').textContent = staff.length + ' staff account' + (staff.length !== 1 ? 's' : '');
     } catch {}
+  }
+
+  let usersState = { all: [], loading: false };
+
+  async function loadUsersList() {
+    if (!requireAuth()) return;
+    if (usersState.loading) return;
+    usersState.loading = true;
+    try {
+      const users = await api.getUsers();
+      usersState.all = users || [];
+      renderUsersList();
+    } catch (err) {
+      $('admin-users-list').innerHTML = '<p class="text-gray-400 text-sm text-center py-8">Failed to load users</p>';
+    } finally {
+      usersState.loading = false;
+    }
+  }
+
+  function renderUsersList() {
+    const query = ($('admin-users-search').value || '').trim().toLowerCase();
+    const list = usersState.all.filter(u => !query || (u.username || '').toLowerCase().includes(query));
+    const container = $('admin-users-list');
+    $('admin-users-count').textContent = usersState.all.length + ' account' + (usersState.all.length !== 1 ? 's' : '');
+
+    if (!list.length) {
+      container.innerHTML = '<p class="text-gray-400 text-sm text-center py-8">No users found</p>';
+      return;
+    }
+
+    const me = getUser();
+    container.innerHTML = list.map(u => {
+      const isMe = me && me.id === u.id;
+      const roleBadge = u.role === 'admin'
+        ? '<span class="text-xs px-2 py-0.5 rounded-full bg-purple-100 text-purple-700 font-medium">admin</span>'
+        : '<span class="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 font-medium">staff</span>';
+      return `
+        <div class="px-4 py-3 flex items-center justify-between gap-3" data-user-row data-user-id="${u.id}">
+          <div class="min-w-0 flex-1">
+            <div class="flex items-center gap-2">
+              <span class="font-semibold text-gray-800 text-sm truncate">${escapeHtml(u.username)}</span>
+              ${roleBadge}
+              ${isMe ? '<span class="text-xs text-purple-600 font-medium">(you)</span>' : ''}
+            </div>
+            <p class="text-xs text-gray-400 mt-0.5">ID: ${u.id}</p>
+          </div>
+          <div class="flex gap-2 shrink-0">
+            <button type="button" class="user-edit-btn text-xs text-blue-700 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-lg font-medium"
+                    data-user-id="${u.id}" data-username="${escapeHtml(u.username)}" data-role="${u.role}">
+              Edit
+            </button>
+            <button type="button" class="user-delete-btn text-xs text-red-700 bg-red-50 hover:bg-red-100 px-3 py-1.5 rounded-lg font-medium ${isMe ? 'opacity-50 cursor-not-allowed' : ''}"
+                    data-user-id="${u.id}" data-username="${escapeHtml(u.username)}" ${isMe ? 'disabled' : ''}>
+              Delete
+            </button>
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  function escapeHtml(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
+  async function handleEditUser(userId, currentUsername, currentRole) {
+    const me = getUser();
+    const isMe = me && me.id === userId;
+    const newUsername = (prompt(`Edit username for #${userId}:`, currentUsername) || '').trim();
+    if (!newUsername) return;
+    if (newUsername === currentUsername) {
+      // skip username change
+    } else if (newUsername.length < 2) {
+      showToast('Username must be at least 2 characters', 'error');
+      return;
+    }
+
+    const roleChoice = prompt(
+      `Role for "${newUsername}" (current: ${currentRole}).\nType "admin" or "staff":`,
+      currentRole
+    );
+    if (roleChoice === null) return;
+    const trimmedRole = (roleChoice || '').trim().toLowerCase();
+    if (!['admin', 'staff'].includes(trimmedRole)) {
+      showToast('Role must be "admin" or "staff"', 'error');
+      return;
+    }
+
+    const pwChoice = prompt('Set a new password? (leave empty to keep current)', '');
+    if (pwChoice === null) return;
+    let newPassword = null;
+    if (pwChoice.trim()) {
+      if (pwChoice.length < 4) {
+        showToast('Password must be at least 4 characters', 'error');
+        return;
+      }
+      newPassword = pwChoice;
+    }
+
+    try {
+      const body = { username: newUsername, role: trimmedRole };
+      if (newPassword) body.password = newPassword;
+      await api.updateUser(userId, body);
+      showToast('User updated', 'success');
+      await loadUsersList();
+      await loadStaffCount();
+    } catch (err) {
+      showToast(err.message || 'Update failed', 'error');
+    }
+  }
+
+  async function handleDeleteUser(userId, username) {
+    const me = getUser();
+    if (me && me.id === userId) {
+      showToast('You cannot delete your own account', 'error');
+      return;
+    }
+    if (!confirm(`Delete user "${username}" (#${userId})?\n\nThis cannot be undone.`)) return;
+    try {
+      await api.deleteUser(userId);
+      showToast('User deleted', 'success');
+      await loadUsersList();
+      await loadStaffCount();
+    } catch (err) {
+      showToast(err.message || 'Delete failed', 'error');
+    }
+  }
+
+  function bindUsersListEvents() {
+    const list = $('admin-users-list');
+    if (!list || list.__bound) return;
+    list.__bound = true;
+    list.addEventListener('click', function (e) {
+      const editBtn = e.target.closest('.user-edit-btn');
+      if (editBtn) {
+        handleEditUser(editBtn.dataset.userId, editBtn.dataset.username, editBtn.dataset.role);
+        return;
+      }
+      const delBtn = e.target.closest('.user-delete-btn');
+      if (delBtn && !delBtn.disabled) {
+        handleDeleteUser(delBtn.dataset.userId, delBtn.dataset.username);
+      }
+    });
   }
 
   async function handleCreateUser(e) {
@@ -684,7 +967,18 @@
 
     $('input-invoice').addEventListener('change', handleFileSelect);
 
+    $('upload-zone-opening').addEventListener('click', function () {
+      $('input-opening-photo').click();
+    });
+    $('input-opening-photo').addEventListener('change', handleOpeningPhotoSelect);
+
+    $('upload-zone-closing').addEventListener('click', function () {
+      $('input-closing-photo').click();
+    });
+    $('input-closing-photo').addEventListener('change', handleClosingPhotoSelect);
+
     $('form-close-shift').addEventListener('submit', handleCloseShift);
+    $('btn-toggle-close-override').addEventListener('click', toggleCloseOverride);
 
     $('btn-logout-open').addEventListener('click', handleLogout);
     $('btn-logout-dash').addEventListener('click', handleLogout);
@@ -708,23 +1002,39 @@
       loadAdminShifts();
     });
 
+    $('admin-users-search').addEventListener('input', function () {
+      renderUsersList();
+    });
+    $('btn-refresh-users').addEventListener('click', function () {
+      loadUsersList();
+    });
+    bindUsersListEvents();
+
     $('btn-go-admin-from-dash').addEventListener('click', function () {
       showAdminDashboard();
       showScreen('screen-admin');
     });
 
     $('btn-back-to-staff').addEventListener('click', async function () {
-      const shift = await api.getCurrentShift();
-      if (shift) {
-        state.currentShift = shift;
-        await loadDashboard();
-        showScreen('screen-dashboard');
-      } else {
-        const user = getUser();
-        $('open-shift-user').textContent = 'Logged in as: ' + (user ? user.username : '');
-        showScreen('screen-open-shift');
-      }
+      await goBackToStaff();
     });
+
+    $('btn-back-to-staff-top').addEventListener('click', async function () {
+      await goBackToStaff();
+    });
+  }
+
+  async function goBackToStaff() {
+    const shift = await api.getCurrentShift();
+    if (shift) {
+      state.currentShift = shift;
+      await loadDashboard();
+      showScreen('screen-dashboard');
+    } else {
+      const user = getUser();
+      $('open-shift-user').textContent = 'Logged in as: ' + (user ? user.username : '');
+      showScreen('screen-open-shift');
+    }
   }
 
   document.addEventListener('DOMContentLoaded', init);
