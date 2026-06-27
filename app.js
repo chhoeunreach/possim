@@ -12,12 +12,44 @@
 
   function $(id) { return document.getElementById(id); }
 
+  // Use the i18n helper when available so toasts/JS strings respect the
+  // selected language. Falls back to the original English string otherwise.
+  function tr(key, vars, fallback) {
+    try {
+      if (window.I18N && typeof window.I18N.t === 'function') {
+        const out = window.I18N.t(key, vars);
+        if (out && out !== key) return out;
+      }
+    } catch (_) {}
+    if (!fallback) return key;
+    if (!vars) return fallback;
+    return fallback.replace(/\{(\w+)\}/g, function (_, k) {
+      return vars[k] !== undefined && vars[k] !== null ? String(vars[k]) : ('{' + k + '}');
+    });
+  }
+
+  // Pluralization-aware variant for keys like 'admin.usersCount'
+  function trCount(key, n, fallback) {
+    try {
+      if (window.I18N && typeof window.I18N.t === 'function') {
+        const out = window.I18N.t(key, { n: n });
+        if (out && out !== key) return out;
+      }
+    } catch (_) {}
+    if (!fallback) return String(n);
+    return n + ' ' + fallback.replace(/\{n\}\s*/, '');
+  }
+
   function showToast(msg, type) {
     const el = document.createElement('div');
     el.className = 'toast toast-' + (type || 'info');
     el.textContent = msg;
     document.getElementById('toastContainer').appendChild(el);
     setTimeout(() => { el.style.opacity = '0'; setTimeout(() => el.remove(), 300); }, 3500);
+  }
+
+  function toastT(key, vars, type, fallback) {
+    showToast(tr(key, vars, fallback), type);
   }
 
   function showScreen(id) {
@@ -196,19 +228,24 @@
     const password = $('input-login-password').value;
 
     if (!username || !password) {
-      showToast('Please enter username and password', 'error');
+      toastT('login.err.empty', null, 'error', 'Please enter username and password');
       return;
     }
 
     try {
       const result = await api.login(username, password);
       setAuth(result.token, result.user);
-      showToast('Welcome, ' + result.user.username, 'success');
+      toastT('login.ok', { name: result.user.username }, 'success', 'Welcome, ' + result.user.username);
       $('input-login-username').value = '';
       $('input-login-password').value = '';
       routeAfterLogin();
     } catch (err) {
-      showToast(err.message, 'error');
+      const msg = (err && err.message) || '';
+      if (/invalid/i.test(msg)) {
+        toastT('login.err.cred', null, 'error', msg);
+      } else {
+        showToast(msg || 'Login failed', 'error');
+      }
     }
   }
 
@@ -226,7 +263,7 @@
     if (!requireAuth()) return;
 
     const branch = $('input-branch').value;
-    if (!branch) { showToast('Please select a branch', 'error'); return; }
+    if (!branch) { toastT('open.err.branch', null, 'error', 'Please select a branch'); return; }
 
     const openingPhotoUrl = ($('input-opening-photo-url').value || '').trim() || null;
 
@@ -238,7 +275,7 @@
         opening_photo_url: openingPhotoUrl
       });
       state.currentShift = shift;
-      showToast('Shift started at ' + shift.branch_name, 'success');
+      toastT('open.ok', { branch: shift.branch_name }, 'success', 'Shift started at ' + shift.branch_name);
       resetOpeningUpload();
       await loadDashboard();
       showScreen('screen-dashboard');
@@ -262,7 +299,7 @@
 
       const user = getUser();
       $('dash-branch-name').textContent = shift.branch_name;
-      $('dash-staff-name').textContent = 'Staff: ' + (user ? user.username : '');
+      $('dash-staff-name').textContent = tr('dash.staff', { name: (user ? user.username : '') }, 'Staff: ' + (user ? user.username : ''));
       $('dash-shift-time').textContent = new Date(shift.start_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
       $('dash-opening-usd').textContent = fmt(shift.opening_usd, 'USD');
       $('dash-opening-khr').textContent = fmt(shift.opening_khr, 'KHR');
@@ -294,14 +331,14 @@
 
       renderTransactionList(txns);
     } catch (err) {
-      showToast('Failed to load dashboard: ' + err.message, 'error');
+      toastT('dash.err.load', { msg: err.message }, 'error', 'Failed to load dashboard: ' + err.message);
     }
   }
 
   function renderTransactionList(txns, containerId) {
     const container = $(containerId || 'txn-list');
     if (!txns || !txns.length) {
-      container.innerHTML = '<p class="text-gray-400 text-sm text-center py-8">No transactions yet</p>';
+      container.innerHTML = '<p class="text-gray-400 text-sm text-center py-8">' + tr('dash.empty', null, 'No transactions yet') + '</p>';
       return;
     }
     container.innerHTML = txns.slice(0, 50).map(t => {
@@ -351,7 +388,7 @@
   async function handleTransaction(e) {
     e.preventDefault();
     if (!requireAuth()) return;
-    if (!state.currentShift) { showToast('No active shift', 'error'); return; }
+    if (!state.currentShift) { toastT('txn.err.noShift', null, 'error', 'No active shift'); return; }
 
     const type = $('input-type').value;
     const currency = $('input-currency').value;
@@ -359,7 +396,7 @@
     const amount = parseFloat($('input-amount').value);
     const cost = parseFloat($('input-cost').value) || 0;
 
-    if (!amount || amount <= 0) { showToast('Enter a valid amount', 'error'); return; }
+    if (!amount || amount <= 0) { toastT('txn.err.amount', null, 'error', 'Enter a valid amount'); return; }
 
     try {
       await api.createTransaction({
@@ -376,7 +413,7 @@
       $('input-amount').value = '';
       $('input-cost').value = '0';
       resetUpload();
-      showToast('Transaction recorded', 'success');
+      toastT('txn.ok', null, 'success', 'Transaction recorded');
       await loadDashboard();
       showScreen('screen-dashboard');
     } catch (err) {
@@ -421,7 +458,7 @@
     const file = e.target.files[0];
     if (!file) return;
 
-    $('upload-status').textContent = 'Compressing (' + formatBytes(file.size) + ')...';
+    $('upload-status').textContent = tr('upload.compress', { size: formatBytes(file.size) }, 'Compressing (' + formatBytes(file.size) + ')...');
 
     try {
       const compressed = await compressImage(file, 1024, 0.65);
@@ -434,17 +471,17 @@
       };
       previewReader.readAsDataURL(compressed);
 
-      const sizeInfo = formatBytes(file.size) + ' → ' + formatBytes(compressed.size);
-      $('upload-status').textContent = 'Uploading (' + sizeInfo + ')...';
+      const sizeInfo = formatBytes(file.size) + ' \u2192 ' + formatBytes(compressed.size);
+      $('upload-status').textContent = tr('upload.uploading', { size: sizeInfo }, 'Uploading (' + sizeInfo + ')...');
 
       const result = await api.uploadInvoice(compressed);
       state.invoiceUrl = result.url;
       $('input-invoice-url').value = result.url;
-      $('upload-status').textContent = 'Compressed: ' + sizeInfo + ' — Uploaded';
-      showToast('Invoice uploaded (' + sizeInfo + ')', 'success');
+      $('upload-status').textContent = tr('upload.done', { size: sizeInfo }, 'Compressed: ' + sizeInfo + ' \u2014 Uploaded');
+      toastT('upload.ok', { size: sizeInfo }, 'success', 'Invoice uploaded (' + sizeInfo + ')');
     } catch (err) {
-      showToast('Upload failed: ' + err.message, 'error');
-      $('upload-status').textContent = 'Upload failed';
+      toastT('upload.err', { msg: err.message }, 'error', 'Upload failed: ' + err.message);
+      $('upload-status').textContent = tr('upload.fail', null, 'Upload failed');
     }
   }
 
@@ -452,7 +489,7 @@
     const file = e.target.files[0];
     if (!file) return;
 
-    $('upload-opening-status').textContent = 'Compressing (' + formatBytes(file.size) + ')...';
+    $('upload-opening-status').textContent = tr('upload.compress', { size: formatBytes(file.size) }, 'Compressing (' + formatBytes(file.size) + ')...');
 
     try {
       const compressed = await compressImage(file, 1024, 0.65);
@@ -465,16 +502,16 @@
       };
       previewReader.readAsDataURL(compressed);
 
-      const sizeInfo = formatBytes(file.size) + ' → ' + formatBytes(compressed.size);
-      $('upload-opening-status').textContent = 'Uploading (' + sizeInfo + ')...';
+      const sizeInfo = formatBytes(file.size) + ' \u2192 ' + formatBytes(compressed.size);
+      $('upload-opening-status').textContent = tr('upload.uploading', { size: sizeInfo }, 'Uploading (' + sizeInfo + ')...');
 
       const result = await api.uploadInvoice(compressed);
       $('input-opening-photo-url').value = result.url;
-      $('upload-opening-status').textContent = 'Compressed: ' + sizeInfo + ' — Uploaded';
-      showToast('Opening photo uploaded (' + sizeInfo + ')', 'success');
+      $('upload-opening-status').textContent = tr('upload.done', { size: sizeInfo }, 'Compressed: ' + sizeInfo + ' \u2014 Uploaded');
+      toastT('upload.opening.ok', { size: sizeInfo }, 'success', 'Opening photo uploaded (' + sizeInfo + ')');
     } catch (err) {
-      showToast('Upload failed: ' + err.message, 'error');
-      $('upload-opening-status').textContent = 'Upload failed';
+      toastT('upload.err', { msg: err.message }, 'error', 'Upload failed: ' + err.message);
+      $('upload-opening-status').textContent = tr('upload.fail', null, 'Upload failed');
     }
   }
 
@@ -482,7 +519,7 @@
     const file = e.target.files[0];
     if (!file) return;
 
-    $('upload-closing-status').textContent = 'Compressing (' + formatBytes(file.size) + ')...';
+    $('upload-closing-status').textContent = tr('upload.compress', { size: formatBytes(file.size) }, 'Compressing (' + formatBytes(file.size) + ')...');
 
     try {
       const compressed = await compressImage(file, 1024, 0.65);
@@ -495,25 +532,25 @@
       };
       previewReader.readAsDataURL(compressed);
 
-      const sizeInfo = formatBytes(file.size) + ' → ' + formatBytes(compressed.size);
-      $('upload-closing-status').textContent = 'Uploading (' + sizeInfo + ')...';
+      const sizeInfo = formatBytes(file.size) + ' \u2192 ' + formatBytes(compressed.size);
+      $('upload-closing-status').textContent = tr('upload.uploading', { size: sizeInfo }, 'Uploading (' + sizeInfo + ')...');
 
       const result = await api.uploadInvoice(compressed);
       $('input-closing-photo-url').value = result.url;
-      $('upload-closing-status').textContent = 'Compressed: ' + sizeInfo + ' — Uploaded';
-      showToast('Closing photo uploaded (' + sizeInfo + ')', 'success');
+      $('upload-closing-status').textContent = tr('upload.done', { size: sizeInfo }, 'Compressed: ' + sizeInfo + ' \u2014 Uploaded');
+      toastT('upload.closing.ok', { size: sizeInfo }, 'success', 'Closing photo uploaded (' + sizeInfo + ')');
     } catch (err) {
-      showToast('Upload failed: ' + err.message, 'error');
-      $('upload-closing-status').textContent = 'Upload failed';
+      toastT('upload.err', { msg: err.message }, 'error', 'Upload failed: ' + err.message);
+      $('upload-closing-status').textContent = tr('upload.fail', null, 'Upload failed');
     }
   }
 
   async function loadCloseShiftForm() {
     if (!requireAuth()) return;
-    if (!state.currentShift) { showToast('No active shift', 'error'); return; }
+    if (!state.currentShift) { toastT('close.err.noShift', null, 'error', 'No active shift'); return; }
 
     const user = getUser();
-    $('close-shift-info').textContent = (user ? user.username : '') + ' · ' + state.currentShift.branch_name;
+    $('close-shift-info').textContent = tr('close.info', { name: (user ? user.username : ''), branch: state.currentShift.branch_name }, (user ? user.username : '') + ' \u00b7 ' + state.currentShift.branch_name);
 
     const txns = state.transactions;
     let totalInUSD = 0, totalOutUSD = 0;
@@ -548,7 +585,7 @@
     const toggleBtn = $('btn-toggle-close-override');
     if (overrideSection) overrideSection.classList.add('hidden');
     if (toggleBtn) {
-      toggleBtn.textContent = 'Override manually';
+      toggleBtn.textContent = tr('close.overrideBtn', null, 'Override manually');
       toggleBtn.classList.remove('text-red-600', 'hover:text-red-700');
       toggleBtn.classList.add('text-blue-600', 'hover:text-blue-700');
     }
@@ -557,14 +594,14 @@
   async function handleCloseShift(e) {
     e.preventDefault();
     if (!requireAuth()) return;
-    if (!state.currentShift) { showToast('No active shift', 'error'); return; }
+    if (!state.currentShift) { toastT('close.err.noShift', null, 'error', 'No active shift'); return; }
 
     let usd, khr;
     if (state.closeOverridden) {
       usd = parseFloat($('input-close-usd').value);
       khr = parseFloat($('input-close-khr').value);
-      if (isNaN(usd) || usd < 0) { showToast('Enter a valid closing USD amount', 'error'); return; }
-      if (isNaN(khr) || khr < 0) { showToast('Enter a valid closing KHR amount', 'error'); return; }
+      if (isNaN(usd) || usd < 0) { toastT('close.err.usd', null, 'error', 'Enter a valid closing USD amount'); return; }
+      if (isNaN(khr) || khr < 0) { toastT('close.err.khr', null, 'error', 'Enter a valid closing KHR amount'); return; }
     } else {
       usd = state.autoCloseUSD || 0;
       khr = state.autoCloseKHR || 0;
@@ -584,7 +621,7 @@
       state.closeOverridden = false;
       state.autoCloseUSD = 0;
       state.autoCloseKHR = 0;
-      showToast('Shift closed successfully! Report sent to Telegram.', 'success');
+      toastT('close.ok', null, 'success', 'Shift closed successfully! Report sent to Telegram.');
       $('input-branch').value = '';
       $('input-opening-usd').value = '0';
       $('input-opening-khr').value = '0';
@@ -603,13 +640,13 @@
     if (isHidden) {
       section.classList.remove('hidden');
       state.closeOverridden = true;
-      btn.textContent = 'Use auto-calculated';
+      btn.textContent = tr('close.useAuto', null, 'Use auto-calculated');
       btn.classList.remove('text-blue-600', 'hover:text-blue-700');
       btn.classList.add('text-red-600', 'hover:text-red-700');
     } else {
       section.classList.add('hidden');
       state.closeOverridden = false;
-      btn.textContent = 'Override manually';
+      btn.textContent = tr('close.overrideBtn', null, 'Override manually');
       btn.classList.remove('text-red-600', 'hover:text-red-700');
       btn.classList.add('text-blue-600', 'hover:text-blue-700');
       $('input-close-usd').value = state.autoCloseUSD > 0 ? state.autoCloseUSD.toFixed(2) : '0';
@@ -622,7 +659,7 @@
     state.currentShift = null;
     state.transactions = [];
     state.invoiceUrl = null;
-    showToast('Logged out', 'info');
+    showToast(tr('logout', null, 'Logged out'), 'info');
     showScreen('screen-login');
   }
 
@@ -636,7 +673,7 @@
         showScreen('screen-dashboard');
       } else {
         const user = getUser();
-        $('open-shift-user').textContent = 'Logged in as: ' + (user ? user.username : '');
+        $('open-shift-user').textContent = tr('open.loggedin', { name: (user ? user.username : '') }, 'Logged in as: ' + (user ? user.username : ''));
         showScreen('screen-open-shift');
       }
     } catch (err) {
@@ -646,7 +683,7 @@
 
   function showAdminDashboard() {
     const user = getUser();
-    $('admin-user-name').textContent = 'Logged in as: ' + (user ? user.username : '') + ' (Admin)';
+    $('admin-user-name').textContent = tr('open.loggedin', { name: (user ? user.username : '') }, 'Logged in as: ' + (user ? user.username : '')) + ' (Admin)';
     switchAdminTab('shifts');
     loadAdminShifts();
     loadStaffCount();

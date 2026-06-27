@@ -3,7 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>SIM Retail POS</title>
+  <title data-i18n-text="app.title">SIM Retail POS</title>
+  <script src="i18n.js"></script>
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
     tailwind.config = {
@@ -43,27 +44,33 @@
 <!-- ============ SCREEN 0: Login ============ -->
 <div id="screen-login" class="screen active min-h-screen">
   <div class="bg-gradient-to-br from-blue-600 to-blue-800 text-white px-6 pt-16 pb-12">
-    <h1 class="text-3xl font-bold">SIM Retail POS</h1>
-    <p class="text-blue-200 mt-2 text-sm">Staff Shift Management System</p>
+    <div class="flex items-start justify-between">
+      <div>
+        <h1 class="text-3xl font-bold" data-i18n-text="app.title">SIM Retail POS</h1>
+        <p class="text-blue-200 mt-2 text-sm" data-i18n-text="app.subtitle">Staff Shift Management System</p>
+      </div>
+      <div id="lang-switcher" class="flex gap-1 bg-white/10 rounded-lg p-0.5 text-xs font-medium"></div>
+    </div>
   </div>
   <div class="flex-1 px-4 -mt-6">
     <div class="bg-white rounded-2xl shadow-lg p-6">
-      <h2 class="text-lg font-semibold text-gray-800 mb-5">Staff Login</h2>
+      <h2 class="text-lg font-semibold text-gray-800 mb-5" data-i18n-text="login.title">Staff Login</h2>
       <form id="form-login">
         <div class="mb-4">
-          <label class="block text-sm font-medium text-gray-600 mb-1.5">Username</label>
+          <label class="block text-sm font-medium text-gray-600 mb-1.5" data-i18n-text="login.username">Username</label>
           <input type="text" id="input-login-username" autocomplete="username" required
                  class="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-gray-800"
-                 placeholder="Enter username">
+                 data-i18n-placeholder="login.username.ph" placeholder="Enter username">
         </div>
         <div class="mb-6">
-          <label class="block text-sm font-medium text-gray-600 mb-1.5">Password</label>
+          <label class="block text-sm font-medium text-gray-600 mb-1.5" data-i18n-text="login.password">Password</label>
           <input type="password" id="input-login-password" autocomplete="current-password" required
                  class="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-gray-800"
-                 placeholder="Enter password">
+                 data-i18n-placeholder="login.password.ph" placeholder="Enter password">
         </div>
         <button type="submit"
-                class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3.5 rounded-xl transition duration-200 active:scale-[0.98]">
+                class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3.5 rounded-xl transition duration-200 active:scale-[0.98]"
+                data-i18n-text="login.submit">
           Sign In
         </button>
       </form>
@@ -76,19 +83,20 @@
   <div class="bg-gradient-to-br from-blue-600 to-blue-800 text-white px-6 pt-12 pb-10">
     <div class="flex items-center justify-between">
       <div>
-        <h1 class="text-2xl font-bold">Open New Shift</h1>
+        <h1 class="text-2xl font-bold" data-i18n-text="open.title">Open New Shift</h1>
         <p id="open-shift-user" class="text-blue-200 mt-1 text-sm"></p>
       </div>
-      <button id="btn-logout-open" class="text-xs text-white/70 hover:text-white bg-white/10 px-3 py-1.5 rounded-lg">&larr; Logout</button>
+      <button id="btn-logout-open" class="text-xs text-white/70 hover:text-white bg-white/10 px-3 py-1.5 rounded-lg" data-i18n-text="logout">&larr; Logout</button>
     </div>
   </div>
   <div class="flex-1 px-4 -mt-6">
     <div class="bg-white rounded-2xl shadow-lg p-6">
       <form id="form-open-shift">
         <div class="mb-4">
-          <label class="block text-sm font-medium text-gray-600 mb-1.5">Branch</label>
+          <label class="block text-sm font-medium text-gray-600 mb-1.5" data-i18n-text="open.branch">Branch</label>
           <select id="input-branch" required
-                  class="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-gray-800 bg-white">
+                  class="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-gray-800 bg-white"
+                  data-i18n-text="open.branch.ph">
             <option value="">Select a branch...</option>
             <option value="កម្ពុជាក្រោម">កម្ពុជាក្រោម</option>
             <option value="វីអាយភី">វីអាយភី</option>
@@ -97,7 +105,7 @@
           </select>
         </div>
         <div class="mb-4">
-          <label class="block text-sm font-medium text-gray-600 mb-1.5">Opening Cash (USD)</label>
+          <label class="block text-sm font-medium text-gray-600 mb-1.5" data-i18n-text="open.usd">Opening Cash (USD)</label>
           <div class="relative">
             <span class="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 font-medium">$</span>
             <input type="number" id="input-opening-usd" step="0.01" min="0" value="0"
@@ -105,7 +113,7 @@
           </div>
         </div>
         <div class="mb-6">
-          <label class="block text-sm font-medium text-gray-600 mb-1.5">Opening Cash (KHR)</label>
+          <label class="block text-sm font-medium text-gray-600 mb-1.5" data-i18n-text="open.khr">Opening Cash (KHR)</label>
           <div class="relative">
             <span class="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 font-medium">៛</span>
             <input type="number" id="input-opening-khr" step="100" min="0" value="0"
@@ -113,13 +121,16 @@
           </div>
         </div>
         <div class="mb-6">
-          <label class="block text-sm font-medium text-gray-600 mb-1.5">Opening Photo <span class="text-gray-400 font-normal">(optional)</span></label>
+          <label class="block text-sm font-medium text-gray-600 mb-1.5">
+            <span data-i18n-text="open.photo">Opening Photo</span>
+            <span class="text-gray-400 font-normal" data-i18n-text="open.photo.optional">(optional)</span>
+          </label>
           <div class="border-2 border-dashed border-gray-200 rounded-xl p-4 text-center cursor-pointer hover:border-blue-400 transition"
                id="upload-zone-opening">
             <input type="file" id="input-opening-photo" accept="image/*" capture="environment" class="hidden">
             <div id="upload-opening-placeholder">
               <svg class="w-10 h-10 mx-auto text-gray-300 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"/></svg>
-              <p class="text-sm text-gray-400">Tap to capture or upload opening photo</p>
+              <p class="text-sm text-gray-400" data-i18n-text="open.photo.hint">Tap to capture or upload opening photo</p>
             </div>
             <div id="upload-opening-preview" class="hidden">
               <img id="preview-opening-image" class="max-h-40 mx-auto rounded-lg mb-2" alt="Opening photo preview">
@@ -129,7 +140,8 @@
           <input type="hidden" id="input-opening-photo-url">
         </div>
         <button type="submit"
-                class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3.5 rounded-xl transition duration-200 active:scale-[0.98]">
+                class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3.5 rounded-xl transition duration-200 active:scale-[0.98]"
+                data-i18n-text="open.submit">
           Start Shift
         </button>
       </form>
@@ -142,67 +154,70 @@
   <div class="bg-gradient-to-br from-blue-600 to-blue-800 text-white px-6 pt-12 pb-6">
     <div class="flex items-center justify-between">
       <div>
-        <h1 class="text-2xl font-bold">Dashboard</h1>
+        <h1 class="text-2xl font-bold" data-i18n-text="dash.title">Dashboard</h1>
         <p id="dash-branch-name" class="text-blue-200 mt-0.5 text-sm font-medium"></p>
       </div>
       <div class="text-right">
         <p id="dash-staff-name" class="text-xs text-blue-200"></p>
         <p id="dash-shift-time" class="text-xs text-blue-300 mt-0.5"></p>
-        <button id="btn-logout-dash" class="text-xs text-white/60 hover:text-white mt-1">Logout</button>
+        <button id="btn-logout-dash" class="text-xs text-white/60 hover:text-white mt-1" data-i18n-text="logout">Logout</button>
       </div>
     </div>
   </div>
   <div class="flex-1 px-4 -mt-4 pb-24">
     <div class="bg-white rounded-xl p-3 mb-3 border border-blue-100 flex items-center justify-between text-sm">
       <div>
-        <span class="text-gray-500">Opening:</span>
+        <span class="text-gray-500" data-i18n-text="dash.opening">Opening:</span>
         <span class="font-semibold text-gray-800 ml-1" id="dash-opening-usd">$0.00</span>
         <span class="text-gray-400 mx-1">/</span>
         <span class="font-semibold text-gray-800" id="dash-opening-khr">៛0</span>
       </div>
-      <span id="dash-shift-status" class="text-xs bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full font-medium">OPEN</span>
+      <span id="dash-shift-status" class="text-xs bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full font-medium" data-i18n-text="dash.status.open">OPEN</span>
     </div>
     <div class="grid grid-cols-2 gap-3 mb-4">
       <div class="stat-card">
-        <p class="text-xs font-medium text-gray-500 uppercase tracking-wide">USD Cash</p>
+        <p class="text-xs font-medium text-gray-500 uppercase tracking-wide" data-i18n-text="dash.usdCash">USD Cash</p>
         <p id="dash-usd-cash" class="text-xl font-bold text-gray-800 mt-1">$0.00</p>
       </div>
       <div class="stat-card">
-        <p class="text-xs font-medium text-gray-500 uppercase tracking-wide">USD Bank</p>
+        <p class="text-xs font-medium text-gray-500 uppercase tracking-wide" data-i18n-text="dash.usdBank">USD Bank</p>
         <p id="dash-usd-bank" class="text-xl font-bold text-gray-800 mt-1">$0.00</p>
       </div>
       <div class="stat-card">
-        <p class="text-xs font-medium text-gray-500 uppercase tracking-wide">KHR Cash</p>
+        <p class="text-xs font-medium text-gray-500 uppercase tracking-wide" data-i18n-text="dash.khrCash">KHR Cash</p>
         <p id="dash-khr-cash" class="text-xl font-bold text-gray-800 mt-1">៛0</p>
       </div>
       <div class="stat-card">
-        <p class="text-xs font-medium text-gray-500 uppercase tracking-wide">KHR Bank</p>
+        <p class="text-xs font-medium text-gray-500 uppercase tracking-wide" data-i18n-text="dash.khrBank">KHR Bank</p>
         <p id="dash-khr-bank" class="text-xl font-bold text-gray-800 mt-1">៛0</p>
       </div>
     </div>
 
     <div class="flex gap-3 mb-4">
       <button id="btn-new-transaction"
-              class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3.5 rounded-xl transition active:scale-[0.98]">
+              class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3.5 rounded-xl transition active:scale-[0.98]"
+              data-i18n-text="dash.newTxn">
         + New Transaction
       </button>
       <button id="btn-close-shift"
-              class="flex-1 bg-red-50 hover:bg-red-100 text-red-600 font-semibold py-3.5 rounded-xl border border-red-200 transition active:scale-[0.98]">
+              class="flex-1 bg-red-50 hover:bg-red-100 text-red-600 font-semibold py-3.5 rounded-xl border border-red-200 transition active:scale-[0.98]"
+              data-i18n-text="dash.closeShift">
         Close Shift
       </button>
     </div>
 
     <div id="admin-nav-dash" class="hidden mb-4">
       <button id="btn-go-admin-from-dash"
-              class="w-full bg-purple-600 hover:bg-purple-700 text-white font-semibold py-3 rounded-xl transition text-sm">
+              class="w-full bg-purple-600 hover:bg-purple-700 text-white font-semibold py-3 rounded-xl transition text-sm"
+              data-i18n-text="dash.openAdmin">
         Open Admin Dashboard
       </button>
     </div>
 
     <div>
-      <h3 class="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">Recent Transactions</h3>
+      <h3 class="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3" data-i18n-text="dash.recent">Recent Transactions</h3>
       <div id="txn-list" class="space-y-2">
-        <p class="text-gray-400 text-sm text-center py-8">No transactions yet</p>
+        <p class="text-gray-400 text-sm text-center py-8" data-i18n-text="dash.empty">No transactions yet</p>
       </div>
     </div>
   </div>
@@ -212,72 +227,72 @@
 <div id="screen-transaction" class="screen min-h-screen">
   <div class="bg-gradient-to-br from-blue-600 to-blue-800 text-white px-6 pt-12 pb-6">
     <div class="flex items-center gap-3">
-      <button id="btn-back-dashboard" class="text-white/80 hover:text-white text-xl">&larr;</button>
-      <h1 class="text-xl font-bold">New Transaction</h1>
+      <button id="btn-back-dashboard" class="text-white/80 hover:text-white text-xl" data-i18n-text="back">&larr;</button>
+      <h1 class="text-xl font-bold" data-i18n-text="txn.title">New Transaction</h1>
     </div>
   </div>
   <div class="flex-1 px-4 -mt-4">
     <div class="bg-white rounded-2xl shadow-lg p-6">
       <div class="mb-4 p-3 bg-blue-50 rounded-xl text-sm text-blue-800">
-        <span class="font-medium">Branch:</span> <span id="txn-branch-name">—</span>
+        <span class="font-medium" data-i18n-text="txn.branch">Branch:</span> <span id="txn-branch-name">—</span>
       </div>
       <form id="form-transaction">
         <div class="mb-4">
-          <label class="block text-sm font-medium text-gray-600 mb-1.5">Type</label>
+          <label class="block text-sm font-medium text-gray-600 mb-1.5" data-i18n-text="txn.type">Type</label>
           <div class="grid grid-cols-2 gap-2">
             <button type="button" id="btn-type-inflow"
                     class="toggle-btn selected py-3 rounded-xl font-medium text-sm border-2"
-                    data-value="inflow">Inflow</button>
+                    data-value="inflow" data-i18n-text="txn.type.inflow">Inflow</button>
             <button type="button" id="btn-type-outflow"
                     class="toggle-btn py-3 rounded-xl font-medium text-sm border-2"
-                    data-value="outflow">Outflow</button>
+                    data-value="outflow" data-i18n-text="txn.type.outflow">Outflow</button>
           </div>
           <input type="hidden" id="input-type" value="inflow">
         </div>
         <div class="mb-4">
-          <label class="block text-sm font-medium text-gray-600 mb-1.5">Currency</label>
+          <label class="block text-sm font-medium text-gray-600 mb-1.5" data-i18n-text="txn.currency">Currency</label>
           <div class="grid grid-cols-2 gap-2">
             <button type="button" id="btn-currency-usd"
                     class="toggle-btn selected py-3 rounded-xl font-medium text-sm border-2"
-                    data-value="USD">USD ($)</button>
+                    data-value="USD" data-i18n-text="txn.currency.usd">USD ($)</button>
             <button type="button" id="btn-currency-khr"
                     class="toggle-btn py-3 rounded-xl font-medium text-sm border-2"
-                    data-value="KHR">KHR (៛)</button>
+                    data-value="KHR" data-i18n-text="txn.currency.khr">KHR (៛)</button>
           </div>
           <input type="hidden" id="input-currency" value="USD">
         </div>
         <div class="mb-4">
-          <label class="block text-sm font-medium text-gray-600 mb-1.5">Payment Method</label>
+          <label class="block text-sm font-medium text-gray-600 mb-1.5" data-i18n-text="txn.method">Payment Method</label>
           <div class="grid grid-cols-2 gap-2">
             <button type="button" id="btn-method-cash"
                     class="toggle-btn selected py-3 rounded-xl font-medium text-sm border-2"
-                    data-value="Cash">Cash</button>
+                    data-value="Cash" data-i18n-text="txn.method.cash">Cash</button>
             <button type="button" id="btn-method-bank"
                     class="toggle-btn py-3 rounded-xl font-medium text-sm border-2"
-                    data-value="Bank">Bank</button>
+                    data-value="Bank" data-i18n-text="txn.method.bank">Bank</button>
           </div>
           <input type="hidden" id="input-method" value="Cash">
         </div>
         <div class="mb-4">
-          <label class="block text-sm font-medium text-gray-600 mb-1.5">Amount</label>
+          <label class="block text-sm font-medium text-gray-600 mb-1.5" data-i18n-text="txn.amount">Amount</label>
           <input type="number" id="input-amount" step="0.01" min="0.01" required
                  class="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-gray-800 text-lg"
-                 placeholder="0.00">
+                 data-i18n-placeholder="txn.amount.ph" placeholder="0.00">
         </div>
         <div class="mb-5">
-          <label class="block text-sm font-medium text-gray-600 mb-1.5">Cost / Expense (optional)</label>
+          <label class="block text-sm font-medium text-gray-600 mb-1.5" data-i18n-text="txn.cost">Cost / Expense (optional)</label>
           <input type="number" id="input-cost" step="0.01" min="0" value="0"
                  class="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-gray-800"
                  placeholder="0.00">
         </div>
         <div class="mb-5">
-          <label class="block text-sm font-medium text-gray-600 mb-1.5">Invoice / Proof Photo</label>
+          <label class="block text-sm font-medium text-gray-600 mb-1.5" data-i18n-text="txn.invoice">Invoice / Proof Photo</label>
           <div class="border-2 border-dashed border-gray-200 rounded-xl p-4 text-center cursor-pointer hover:border-blue-400 transition"
                id="upload-zone">
             <input type="file" id="input-invoice" accept="image/*" capture="environment" class="hidden">
             <div id="upload-placeholder">
               <svg class="w-10 h-10 mx-auto text-gray-300 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"/></svg>
-              <p class="text-sm text-gray-400">Tap to capture or upload invoice / proof photo</p>
+              <p class="text-sm text-gray-400" data-i18n-text="txn.invoice.hint">Tap to capture or upload invoice / proof photo</p>
             </div>
             <div id="upload-preview" class="hidden">
               <img id="preview-image" class="max-h-40 mx-auto rounded-lg mb-2" alt="Invoice preview">
@@ -287,7 +302,8 @@
           <input type="hidden" id="input-invoice-url">
         </div>
         <button type="submit"
-                class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3.5 rounded-xl transition duration-200 active:scale-[0.98]">
+                class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3.5 rounded-xl transition duration-200 active:scale-[0.98]"
+                data-i18n-text="txn.submit">
           Record Transaction
         </button>
       </form>
@@ -299,9 +315,9 @@
 <div id="screen-close-shift" class="screen min-h-screen">
   <div class="bg-gradient-to-br from-blue-600 to-blue-800 text-white px-6 pt-12 pb-6">
     <div class="flex items-center gap-3">
-      <button id="btn-back-dashboard2" class="text-white/80 hover:text-white text-xl">&larr;</button>
+      <button id="btn-back-dashboard2" class="text-white/80 hover:text-white text-xl" data-i18n-text="back">&larr;</button>
       <div>
-        <h1 class="text-xl font-bold">Close Shift</h1>
+        <h1 class="text-xl font-bold" data-i18n-text="close.title">Close Shift</h1>
         <p id="close-shift-info" class="text-blue-200 text-xs mt-0.5"></p>
       </div>
     </div>
@@ -309,7 +325,7 @@
   <div class="flex-1 px-4 -mt-4">
     <div class="bg-white rounded-2xl shadow-lg p-6">
       <div class="mb-5 p-4 bg-blue-50 rounded-xl">
-        <p class="text-sm font-medium text-blue-800 mb-2">Expected Closing Balances</p>
+        <p class="text-sm font-medium text-blue-800 mb-2" data-i18n-text="close.expected">Expected Closing Balances</p>
         <div class="flex justify-between text-sm">
           <span class="text-blue-600">USD: <strong id="close-expected-usd">$0.00</strong></span>
           <span class="text-blue-600">KHR: <strong id="close-expected-khr">៛0</strong></span>
@@ -318,31 +334,35 @@
       <form id="form-close-shift">
         <div class="mb-5 p-4 bg-emerald-50 border border-emerald-200 rounded-xl">
           <div class="flex items-center justify-between mb-2">
-            <p class="text-sm font-semibold text-emerald-800">Auto-calculated Closing</p>
-            <span class="text-xs text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full font-medium">Opening + Transactions</span>
+            <p class="text-sm font-semibold text-emerald-800" data-i18n-text="close.autoTitle">Auto-calculated Closing</p>
+            <span class="text-xs text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full font-medium" data-i18n-text="close.autoTag">Opening + Transactions</span>
           </div>
           <div class="grid grid-cols-2 gap-3 text-sm">
             <div class="bg-white rounded-lg p-3 border border-emerald-100">
-              <p class="text-xs text-gray-500 mb-0.5">Actual USD</p>
+              <p class="text-xs text-gray-500 mb-0.5" data-i18n-text="close.actualUsd">Actual USD</p>
               <p class="text-base font-bold text-emerald-700" id="close-actual-usd-display">$0.00</p>
             </div>
             <div class="bg-white rounded-lg p-3 border border-emerald-100">
-              <p class="text-xs text-gray-500 mb-0.5">Actual KHR</p>
+              <p class="text-xs text-gray-500 mb-0.5" data-i18n-text="close.actualKhr">Actual KHR</p>
               <p class="text-base font-bold text-emerald-700" id="close-actual-khr-display">៛0</p>
             </div>
           </div>
-          <p class="text-xs text-gray-500 mt-2">Computed from opening balance + all recorded inflows/outflows. Tap <span class="font-semibold">"Override"</span> to enter a different amount.</p>
+          <p class="text-xs text-gray-500 mt-2" data-i18n-text="close.autoHelp">Computed from opening balance + all recorded inflows/outflows. Tap "Override" to enter a different amount.</p>
         </div>
         <div class="mb-4 flex items-center justify-between">
-          <span class="text-xs font-medium text-gray-600">Manual override</span>
+          <span class="text-xs font-medium text-gray-600" data-i18n-text="close.overrideLabel">Manual override</span>
           <button type="button" id="btn-toggle-close-override"
-                  class="text-xs text-blue-600 hover:text-blue-700 font-medium underline">
+                  class="text-xs text-blue-600 hover:text-blue-700 font-medium underline"
+                  data-i18n-text="close.overrideBtn">
             Override manually
           </button>
         </div>
         <div id="close-override-section" class="hidden">
           <div class="mb-4">
-            <label class="block text-sm font-medium text-gray-600 mb-1.5">Actual Closing USD <span class="text-gray-400 font-normal">(override)</span></label>
+            <label class="block text-sm font-medium text-gray-600 mb-1.5">
+              <span data-i18n-text="close.usd">Actual Closing USD</span>
+              <span class="text-gray-400 font-normal" data-i18n-text="close.optional">(override)</span>
+            </label>
             <div class="relative">
               <span class="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 font-medium">$</span>
               <input type="number" id="input-close-usd" step="0.01" min="0"
@@ -350,7 +370,10 @@
             </div>
           </div>
           <div class="mb-6">
-            <label class="block text-sm font-medium text-gray-600 mb-1.5">Actual Closing KHR <span class="text-gray-400 font-normal">(override)</span></label>
+            <label class="block text-sm font-medium text-gray-600 mb-1.5">
+              <span data-i18n-text="close.khr">Actual Closing KHR</span>
+              <span class="text-gray-400 font-normal" data-i18n-text="close.optional">(override)</span>
+            </label>
             <div class="relative">
               <span class="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 font-medium">៛</span>
               <input type="number" id="input-close-khr" step="100" min="0"
@@ -359,13 +382,16 @@
           </div>
         </div>
         <div class="mb-6">
-          <label class="block text-sm font-medium text-gray-600 mb-1.5">Closing Photo <span class="text-gray-400 font-normal">(optional)</span></label>
+          <label class="block text-sm font-medium text-gray-600 mb-1.5">
+            <span data-i18n-text="close.photo">Closing Photo</span>
+            <span class="text-gray-400 font-normal" data-i18n-text="open.photo.optional">(optional)</span>
+          </label>
           <div class="border-2 border-dashed border-gray-200 rounded-xl p-4 text-center cursor-pointer hover:border-blue-400 transition"
                id="upload-zone-closing">
             <input type="file" id="input-closing-photo" accept="image/*" capture="environment" class="hidden">
             <div id="upload-closing-placeholder">
               <svg class="w-10 h-10 mx-auto text-gray-300 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"/></svg>
-              <p class="text-sm text-gray-400">Tap to capture or upload closing photo</p>
+              <p class="text-sm text-gray-400" data-i18n-text="close.photo.hint">Tap to capture or upload closing photo</p>
             </div>
             <div id="upload-closing-preview" class="hidden">
               <img id="preview-closing-image" class="max-h-40 mx-auto rounded-lg mb-2" alt="Closing photo preview">
@@ -375,7 +401,8 @@
           <input type="hidden" id="input-closing-photo-url">
         </div>
         <button type="submit"
-                class="w-full bg-red-600 hover:bg-red-700 text-white font-semibold py-3.5 rounded-xl transition duration-200 active:scale-[0.98]">
+                class="w-full bg-red-600 hover:bg-red-700 text-white font-semibold py-3.5 rounded-xl transition duration-200 active:scale-[0.98]"
+                data-i18n-text="close.submit">
           Confirm &amp; End Shift
         </button>
       </form>
@@ -391,46 +418,51 @@
               class="flex items-center gap-1.5 text-white/80 hover:text-white text-sm font-medium bg-white/10 hover:bg-white/20 px-3 py-1.5 rounded-lg transition"
               aria-label="Back to Staff Dashboard">
         <span class="text-lg leading-none">&larr;</span>
-        <span>Staff</span>
+        <span data-i18n-text="admin.backStaff">Staff</span>
       </button>
       <div class="flex-1">
-        <h1 class="text-2xl font-bold">Admin Dashboard</h1>
+        <h1 class="text-2xl font-bold" data-i18n-text="admin.title">Admin Dashboard</h1>
         <p id="admin-user-name" class="text-purple-200 mt-0.5 text-sm"></p>
       </div>
-      <button id="btn-logout-admin" class="text-xs text-white/70 hover:text-white bg-white/10 px-3 py-1.5 rounded-lg">Logout</button>
+      <button id="btn-logout-admin" class="text-xs text-white/70 hover:text-white bg-white/10 px-3 py-1.5 rounded-lg" data-i18n-text="logout">Logout</button>
     </div>
   </div>
   <div class="flex-1 px-4 -mt-4 pb-24">
     <div class="bg-white rounded-2xl shadow-lg p-4 mb-4">
       <div class="flex items-center justify-between">
         <div>
-          <p class="text-sm font-medium text-gray-600">Manage Staff</p>
+          <p class="text-sm font-medium text-gray-600" data-i18n-text="admin.manageStaff">Manage Staff</p>
           <p id="admin-staff-count" class="text-xs text-gray-400 mt-0.5">0 staff accounts</p>
         </div>
         <button id="btn-show-create-user"
-                class="bg-green-600 hover:bg-green-700 text-white text-sm font-medium px-4 py-2 rounded-xl transition active:scale-[0.98]">
+                class="bg-green-600 hover:bg-green-700 text-white text-sm font-medium px-4 py-2 rounded-xl transition active:scale-[0.98]"
+                data-i18n-text="admin.newStaff">
           + New Staff
         </button>
       </div>
       <form id="form-create-user" class="hidden mt-3 pt-3 border-t border-gray-100">
         <div class="grid grid-cols-3 gap-2 mb-2">
-          <input type="text" id="input-new-username" placeholder="Username" required
-                 class="px-3 py-2 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none">
-          <input type="password" id="input-new-password" placeholder="Password" required
-                 class="px-3 py-2 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none">
+          <input type="text" id="input-new-username" required
+                 class="px-3 py-2 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none"
+                 data-i18n-placeholder="user.username.ph" placeholder="Username">
+          <input type="password" id="input-new-password" required
+                 class="px-3 py-2 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none"
+                 data-i18n-placeholder="user.password.ph" placeholder="Password">
           <select id="input-new-role"
                   class="px-3 py-2 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none bg-white">
-            <option value="staff">Staff</option>
-            <option value="admin">Admin</option>
+            <option value="staff" data-i18n-text="user.role.staff">Staff</option>
+            <option value="admin" data-i18n-text="user.role.admin">Admin</option>
           </select>
         </div>
         <div class="flex gap-2">
           <button type="submit"
-                  class="bg-green-600 hover:bg-green-700 text-white text-sm font-medium px-4 py-2 rounded-xl transition">
+                  class="bg-green-600 hover:bg-green-700 text-white text-sm font-medium px-4 py-2 rounded-xl transition"
+                  data-i18n-text="admin.createUser">
             Create Account
           </button>
           <button type="button" id="btn-cancel-create-user"
-                  class="text-gray-500 text-sm px-3 py-2 hover:text-gray-700">Cancel</button>
+                  class="text-gray-500 text-sm px-3 py-2 hover:text-gray-700"
+                  data-i18n-text="admin.cancel">Cancel</button>
         </div>
       </form>
     </div>
@@ -438,36 +470,38 @@
     <div class="bg-white rounded-2xl shadow-lg overflow-hidden mb-4">
       <div class="flex items-center justify-between px-4 py-3 border-b border-gray-100">
           <div>
-            <p class="text-sm font-medium text-gray-800">Staff / Users</p>
+            <p class="text-sm font-medium text-gray-800" data-i18n-text="admin.users">Staff / Users</p>
             <p id="admin-users-count" class="text-xs text-gray-400 mt-0.5">0 accounts</p>
           </div>
           <div class="flex gap-2">
-            <input type="text" id="admin-users-search" placeholder="Search username..."
-                   class="px-3 py-1.5 border border-gray-200 rounded-lg text-xs focus:ring-2 focus:ring-purple-500 focus:border-purple-500 outline-none w-36">
+            <input type="text" id="admin-users-search"
+                   class="px-3 py-1.5 border border-gray-200 rounded-lg text-xs focus:ring-2 focus:ring-purple-500 focus:border-purple-500 outline-none w-36"
+                   data-i18n-placeholder="admin.search.ph" placeholder="Search username...">
             <button id="btn-refresh-users"
-                    class="text-xs text-purple-700 bg-purple-50 hover:bg-purple-100 px-3 py-1.5 rounded-lg font-medium">Refresh</button>
+                    class="text-xs text-purple-700 bg-purple-50 hover:bg-purple-100 px-3 py-1.5 rounded-lg font-medium"
+                    data-i18n-text="admin.refresh">Refresh</button>
           </div>
       </div>
       <div id="admin-users-list" class="divide-y divide-gray-100">
-          <p class="text-gray-400 text-sm text-center py-8">Loading users...</p>
+          <p class="text-gray-400 text-sm text-center py-8" data-i18n-text="admin.loading">Loading users...</p>
       </div>
     </div>
 
     <div class="bg-white rounded-2xl shadow-lg overflow-hidden mb-4">
       <div class="grid grid-cols-3 gap-0">
-        <button id="admin-tab-shifts" class="admin-tab active py-3 text-sm font-medium text-center">Shifts</button>
-        <button id="admin-tab-transactions" class="admin-tab py-3 text-sm font-medium text-center">Transactions</button>
-        <button id="admin-tab-logs" class="admin-tab py-3 text-sm font-medium text-center">Activity Logs</button>
+        <button id="admin-tab-shifts" class="admin-tab active py-3 text-sm font-medium text-center" data-i18n-text="admin.tab.shifts">Shifts</button>
+        <button id="admin-tab-transactions" class="admin-tab py-3 text-sm font-medium text-center" data-i18n-text="admin.tab.txns">Transactions</button>
+        <button id="admin-tab-logs" class="admin-tab py-3 text-sm font-medium text-center" data-i18n-text="admin.tab.logs">Activity Logs</button>
       </div>
     </div>
 
     <!-- Section A: Shifts -->
     <div id="admin-section-shifts" class="admin-section">
       <div class="bg-white rounded-2xl shadow-lg p-4 mb-3">
-        <label class="block text-sm font-medium text-gray-600 mb-1.5">Filter by Branch</label>
+        <label class="block text-sm font-medium text-gray-600 mb-1.5" data-i18n-text="admin.filterBranch">Filter by Branch</label>
         <select id="admin-filter-branch"
                 class="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 outline-none text-gray-800 bg-white text-sm">
-          <option value="">All Branches</option>
+          <option value="" data-i18n-text="admin.allBranches">All Branches</option>
           <option value="កម្ពុជាក្រោម">កម្ពុជាក្រោម</option>
           <option value="វីអាយភី">វីអាយភី</option>
           <option value="អ៊ីអន">អ៊ីអន</option>
@@ -475,27 +509,28 @@
         </select>
       </div>
       <div id="admin-shifts-list" class="space-y-2">
-        <p class="text-gray-400 text-sm text-center py-8">Loading shifts...</p>
+        <p class="text-gray-400 text-sm text-center py-8" data-i18n-text="admin.loading">Loading shifts...</p>
       </div>
     </div>
 
     <!-- Section B: Transactions -->
     <div id="admin-section-transactions" class="admin-section hidden">
       <div id="admin-txns-list" class="space-y-2">
-        <p class="text-gray-400 text-sm text-center py-8">Loading transactions...</p>
+        <p class="text-gray-400 text-sm text-center py-8" data-i18n-text="admin.loading">Loading transactions...</p>
       </div>
     </div>
 
     <!-- Section C: Activity Logs -->
     <div id="admin-section-logs" class="admin-section hidden">
       <div id="admin-logs-list" class="bg-white rounded-2xl shadow-lg divide-y divide-gray-100">
-        <p class="text-gray-400 text-sm text-center py-8">Loading activity logs...</p>
+        <p class="text-gray-400 text-sm text-center py-8" data-i18n-text="admin.loading">Loading activity logs...</p>
       </div>
     </div>
 
     <div class="mt-4">
       <button id="btn-back-to-staff"
-              class="hidden w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-xl transition text-sm">
+              class="hidden w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-xl transition text-sm"
+              data-i18n-text="admin.backStaff.full">
         Back to Staff Dashboard
       </button>
     </div>
