@@ -1050,8 +1050,8 @@ async function start() {
       console.warn('Telegram bot NOT configured — messages will be skipped');
     }
 
-    app.listen(PORT, () => {
-      console.log(`POS Mini App server running on http://localhost:${PORT}`);
+    app.listen(PORT, '0.0.0.0', () => {
+      console.log(`POS Mini App server running on http://0.0.0.0:${PORT}`);
     });
   } catch (err) {
     console.error('Failed to start server:', err);
