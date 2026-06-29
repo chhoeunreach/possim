@@ -365,7 +365,7 @@ async function sendTelegramPhoto(chatId, photoPath, caption, parseMode = 'Markdo
   }
 }
 
-async function sendTelegramShiftOpenAlert(shift) {
+async function sendTelegramShiftOpenAlert(shift, userId) {
   if (!TELEGRAM_BOT_TOKEN || !TELEGRAM_CHAT_ID) {
     console.warn('Telegram not configured — skipping shift open alert');
     return;
@@ -404,12 +404,13 @@ async function sendTelegramShiftOpenAlert(shift) {
         { chat_id: TELEGRAM_CHAT_ID, text, disable_web_page_preview: true }
       );
     }
+    await logActivity(userId, 'Telegram notification sent', `Sent shift open alert for branch "${shift.branch_name}" via Telegram`);
   } catch (err) {
     console.error('Failed to send shift open alert:', err.response && err.response.data ? err.response.data : err.message);
   }
 }
 
-async function sendTelegramReport(shiftId) {
+async function sendTelegramReport(shiftId, userId) {
   if (!TELEGRAM_BOT_TOKEN || !TELEGRAM_CHAT_ID) {
     console.warn('Telegram bot not configured — skipping notification');
     return;
@@ -531,6 +532,7 @@ async function sendTelegramReport(shiftId) {
     }
 
     console.log(`Telegram report sent for shift #${shiftId}`);
+    await logActivity(userId, 'Telegram notification sent', `Sent shift report for shift #${shiftId} via Telegram`);
   } catch (err) {
     console.error('Failed to send Telegram report:', err.response?.data || err.message);
   }
@@ -575,7 +577,7 @@ app.post('/api/auth/login', loginRateLimiter, async (req, res) => {
   }
 });
 
-async function sendTelegramTransactionAlert(txn, shift) {
+async function sendTelegramTransactionAlert(txn, shift, userId) {
   if (!TELEGRAM_BOT_TOKEN || !TELEGRAM_CHAT_ID) {
     console.warn('Telegram not configured — skipping transaction alert');
     return;
@@ -638,6 +640,7 @@ async function sendTelegramTransactionAlert(txn, shift) {
       );
       console.log(`Telegram transaction alert sent (ok: ${resp.data && resp.data.ok})`);
     }
+    await logActivity(userId, 'Telegram notification sent', `Sent transaction alert for shift #${txn.shift_id} (${txn.type} ${formatCurrency(txn.amount, txn.currency)}) via Telegram`);
   } catch (err) {
     console.error('Failed to send transaction alert:', err.response && err.response.data ? err.response.data : err.message);
   }
@@ -677,7 +680,7 @@ app.post('/api/shifts', authenticateToken, async (req, res) => {
       `Opened shift for branch "${branch_name.trim()}" with $${usd.toFixed(2)} USD and ៛${khr} KHR${photoUrl ? ' (photo attached)' : ''}`
     );
 
-    sendTelegramShiftOpenAlert(shift);
+    sendTelegramShiftOpenAlert(shift, req.user.id);
 
     res.status(201).json(shift);
   } catch (err) {
@@ -777,7 +780,7 @@ app.post('/api/transactions', authenticateToken, async (req, res) => {
     const txnDesc = `${type === 'inflow' ? 'Inflow' : 'Outflow'} of ${formatCurrency(amt, currency)} via ${payment_method}` + (costAmt > 0 ? ` (cost: ${formatCurrency(costAmt, currency)})` : '');
     await logActivity(req.user.id, 'Created transaction', txnDesc);
 
-    sendTelegramTransactionAlert(txn, shift);
+    sendTelegramTransactionAlert(txn, shift, req.user.id);
 
     res.status(201).json(txn);
   } catch (err) {
@@ -814,7 +817,7 @@ app.put('/api/shifts/:id/close', authenticateToken, async (req, res) => {
     const logDetail = `Closed shift for branch "${shift.branch_name}". Expected USD: ${formatCurrency(expectedUSD, 'USD')}, Actual USD: ${formatCurrency(actualUSD, 'USD')} (${diffUSD >= 0 ? '+' : ''}${formatCurrency(diffUSD, 'USD')})${photoUrl ? ' (photo attached)' : ''}`;
     await logActivity(req.user.id, 'Closed shift', logDetail);
 
-    sendTelegramReport(req.params.id);
+    sendTelegramReport(req.params.id, req.user.id);
 
     res.json(updated);
   } catch (err) {
