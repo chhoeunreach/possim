@@ -766,7 +766,7 @@ app.post('/api/transactions', authenticateToken, async (req, res) => {
     if (!validMethods.includes(payment_method)) return res.status(400).json({ error: 'Invalid payment method' });
 
     const amt = parseFloat(amount);
-    if (isNaN(amt) || amt <= 0) return res.status(400).json({ error: 'Amount must be a positive number' });
+    if (isNaN(amt) || amt < 0) return res.status(400).json({ error: 'Amount must be zero or a positive number' });
 
     const costAmt = parseFloat(cost) || 0;
 

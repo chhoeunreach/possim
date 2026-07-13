@@ -275,15 +275,25 @@
         </div>
         <div class="mb-4">
           <label class="block text-sm font-medium text-gray-600 mb-1.5" data-i18n-text="txn.amount">Amount</label>
-          <input type="number" id="input-amount" step="0.01" min="0.01" required
-                 class="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-gray-800 text-lg"
-                 data-i18n-placeholder="txn.amount.ph" placeholder="0.00">
+          <div class="relative">
+            <span id="amount-currency-symbol"
+                  class="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-lg font-semibold text-blue-500">$</span>
+            <input type="number" id="input-amount" step="0.01" min="0" value="0" required
+                   inputmode="decimal"
+                   class="w-full pl-9 pr-4 py-3.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 outline-none text-gray-900 text-xl font-semibold tracking-tight transition"
+                   data-i18n-placeholder="txn.amount.ph" placeholder="0.00">
+          </div>
         </div>
         <div class="mb-5">
           <label class="block text-sm font-medium text-gray-600 mb-1.5" data-i18n-text="txn.cost">Cost / Expense (optional)</label>
-          <input type="number" id="input-cost" step="0.01" min="0" value="0"
-                 class="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-gray-800"
-                 placeholder="0.00">
+          <div class="relative">
+            <span id="cost-currency-symbol"
+                  class="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-base font-medium text-gray-400">$</span>
+            <input type="number" id="input-cost" step="0.01" min="0" value="0"
+                   inputmode="decimal"
+                   class="w-full pl-9 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-gray-800 transition"
+                   placeholder="0.00">
+          </div>
         </div>
         <div class="mb-5">
           <label class="block text-sm font-medium text-gray-600 mb-1.5" data-i18n-text="txn.invoice">Invoice / Proof Photo</label>

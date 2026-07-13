@@ -380,9 +380,18 @@
           });
           this.classList.add('selected');
           $(group.input).value = this.dataset.value;
+          if (group.input === 'input-currency') updateCurrencySymbols(this.dataset.value);
         });
       });
     });
+  }
+
+  function updateCurrencySymbols(currency) {
+    const symbol = currency === 'KHR' ? '៛' : '$';
+    const amountEl = $('amount-currency-symbol');
+    const costEl = $('cost-currency-symbol');
+    if (amountEl) amountEl.textContent = symbol;
+    if (costEl) costEl.textContent = symbol;
   }
 
   async function handleTransaction(e) {
@@ -396,7 +405,7 @@
     const amount = parseFloat($('input-amount').value);
     const cost = parseFloat($('input-cost').value) || 0;
 
-    if (!amount || amount <= 0) { toastT('txn.err.amount', null, 'error', 'Enter a valid amount'); return; }
+    if (isNaN(amount) || amount < 0) { toastT('txn.err.amount', null, 'error', 'Enter a valid amount'); return; }
 
     try {
       await api.createTransaction({
@@ -410,7 +419,7 @@
       });
       state.invoiceUrl = null;
       $('input-invoice-url').value = '';
-      $('input-amount').value = '';
+      $('input-amount').value = '0';
       $('input-cost').value = '0';
       resetUpload();
       toastT('txn.ok', null, 'success', 'Transaction recorded');
@@ -974,8 +983,9 @@
       if (state.currentShift) {
         $('txn-branch-name').textContent = state.currentShift.branch_name;
       }
-      $('input-amount').value = '';
+      $('input-amount').value = '0';
       $('input-cost').value = '0';
+      updateCurrencySymbols($('input-currency').value);
       resetUpload();
       showScreen('screen-transaction');
     });
