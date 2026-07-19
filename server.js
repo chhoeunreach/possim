@@ -15,7 +15,11 @@ const { connectRedis, getRedis } = require('./redis');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const JWT_SECRET = process.env.JWT_SECRET || 'pos-mini-app-secret-key-change-in-production';
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+  console.error('FATAL: JWT_SECRET environment variable is required');
+  process.exit(1);
+}
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID;
 
@@ -252,7 +256,16 @@ async function seedSampleData() {
   console.log('Sample data seeded successfully');
 }
 
-app.use(express.static(path.join(__dirname)));
+// In production, serve the built Vite frontend from dist/
+const distDir = path.join(__dirname, 'dist');
+const hasDist = fs.existsSync(distDir) && fs.existsSync(path.join(distDir, 'index.html'));
+
+if (hasDist) {
+  app.use(express.static(distDir));
+} else {
+  // Fallback: serve legacy index.html or development-mode Vite
+  app.use(express.static(path.join(__dirname)));
+}
 app.use('/uploads', express.static(uploadsDir));
 
 function authenticateToken(req, res, next) {
@@ -406,7 +419,7 @@ async function sendTelegramShiftOpenAlert(shift, userId) {
     }
     await logActivity(userId, 'Telegram notification sent', `Sent shift open alert for branch "${shift.branch_name}" via Telegram`);
   } catch (err) {
-    console.error('Failed to send shift open alert:', err.response && err.response.data ? err.response.data : err.message);
+    console.error('Failed to send shift open alert:', err.message);
   }
 }
 
@@ -534,7 +547,7 @@ async function sendTelegramReport(shiftId, userId) {
     console.log(`Telegram report sent for shift #${shiftId}`);
     await logActivity(userId, 'Telegram notification sent', `Sent shift report for shift #${shiftId} via Telegram`);
   } catch (err) {
-    console.error('Failed to send Telegram report:', err.response?.data || err.message);
+    console.error('Failed to send Telegram report:', err.message);
   }
 }
 
@@ -573,6 +586,34 @@ app.post('/api/auth/login', loginRateLimiter, async (req, res) => {
     res.json({ token, user: { id: user.id, username: user.username, role: user.role } });
   } catch (err) {
     console.error('Login error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+app.put('/api/auth/password', authenticateToken, async (req, res) => {
+  try {
+    const { current_password, new_password } = req.body;
+    if (!current_password || !new_password) {
+      return res.status(400).json({ error: 'Current and new password are required' });
+    }
+    if (new_password.length < 4) {
+      return res.status(400).json({ error: 'New password must be at least 4 characters' });
+    }
+
+    const user = await queryOne('SELECT * FROM users WHERE id = ?', [req.user.id]);
+    if (!user) return res.status(404).json({ error: 'User not found' });
+
+    if (!bcrypt.compareSync(current_password, user.password_hash)) {
+      return res.status(401).json({ error: 'Current password is incorrect' });
+    }
+
+    const hash = bcrypt.hashSync(new_password, 10);
+    await execute('UPDATE users SET password_hash = ? WHERE id = ?', [hash, req.user.id]);
+
+    await logActivity(req.user.id, 'Password changed', `User "${req.user.username}" changed their password`);
+    res.json({ message: 'Password updated successfully' });
+  } catch (err) {
+    console.error('Password change error:', err);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -642,7 +683,7 @@ async function sendTelegramTransactionAlert(txn, shift, userId) {
     }
     await logActivity(userId, 'Telegram notification sent', `Sent transaction alert for shift #${txn.shift_id} (${txn.type} ${formatCurrency(txn.amount, txn.currency)}) via Telegram`);
   } catch (err) {
-    console.error('Failed to send transaction alert:', err.response && err.response.data ? err.response.data : err.message);
+    console.error('Failed to send transaction alert:', err.message);
   }
 }
 
@@ -699,6 +740,19 @@ app.get('/api/shifts/current', authenticateToken, async (req, res) => {
     res.json(shift);
   } catch (err) {
     console.error('Get current shift error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+app.get('/api/shifts', authenticateToken, async (req, res) => {
+  try {
+    const shifts = await query(
+      'SELECT * FROM shifts WHERE user_id = ? ORDER BY id DESC',
+      [req.user.id]
+    );
+    res.json(shifts);
+  } catch (err) {
+    console.error('Get shifts error:', err);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -811,10 +865,30 @@ app.put('/api/shifts/:id/close', authenticateToken, async (req, res) => {
 
     const updated = await queryOne('SELECT * FROM shifts WHERE id = ?', [req.params.id]);
 
-    const expectedUSD = parseFloat(shift.opening_usd);
-    const actualUSD = usd;
-    const diffUSD = actualUSD - expectedUSD;
-    const logDetail = `Closed shift for branch "${shift.branch_name}". Expected USD: ${formatCurrency(expectedUSD, 'USD')}, Actual USD: ${formatCurrency(actualUSD, 'USD')} (${diffUSD >= 0 ? '+' : ''}${formatCurrency(diffUSD, 'USD')})${photoUrl ? ' (photo attached)' : ''}`;
+    const txns = await query(
+      'SELECT * FROM transactions WHERE shift_id = ? ORDER BY timestamp ASC',
+      [req.params.id]
+    );
+    let totalInUSD = 0, totalOutUSD = 0, totalInKHR = 0, totalOutKHR = 0;
+    for (const t of txns) {
+      if (t.currency === 'USD') {
+        if (t.type === 'inflow') totalInUSD += parseFloat(t.amount);
+        else totalOutUSD += parseFloat(t.amount);
+      } else {
+        if (t.type === 'inflow') totalInKHR += parseFloat(t.amount);
+        else totalOutKHR += parseFloat(t.amount);
+      }
+    }
+    const expectedUSD = parseFloat(shift.opening_usd) + totalInUSD - totalOutUSD;
+    const expectedKHR = parseFloat(shift.opening_khr) + totalInKHR - totalOutKHR;
+    const diffUSD = usd - expectedUSD;
+    const diffKHR = khr - expectedKHR;
+    const logDetail = `Closed shift for branch "${shift.branch_name}". `
+      + `Expected: ${formatCurrency(expectedUSD, 'USD')} / ${formatCurrency(expectedKHR, 'KHR')}, `
+      + `Actual: ${formatCurrency(usd, 'USD')} / ${formatCurrency(khr, 'KHR')} `
+      + `(USD: ${diffUSD >= 0 ? '+' : ''}${formatCurrency(diffUSD, 'USD')}, `
+      + `KHR: ${diffKHR >= 0 ? '+' : ''}${formatCurrency(diffKHR, 'KHR')})`
+      + `${photoUrl ? ' (photo attached)' : ''}`;
     await logActivity(req.user.id, 'Closed shift', logDetail);
 
     sendTelegramReport(req.params.id, req.user.id);
@@ -838,50 +912,74 @@ app.post('/api/upload', authenticateToken, upload.single('invoice'), (req, res) 
   }
 });
 
-app.get('/api/admin/shifts', authenticateToken, requireAdmin, cacheResponse(30), async (req, res) => {
+async function paginatedQuery(countSql, dataSql, params, page, limit) {
+  const offset = (page - 1) * limit;
+  const pool = getPool();
+  const [[{ count }]] = await pool.query(countSql, params);
+  const [data] = await pool.query(dataSql, [...params, limit, offset]);
+  return { data, total: Number(count), page, limit };
+}
+
+app.get('/api/admin/shifts', authenticateToken, requireAdmin, async (req, res) => {
   try {
+    const page = Math.max(1, parseInt(req.query.page) || 1);
+    const limit = Math.min(200, Math.max(1, parseInt(req.query.limit) || 50));
     const { branch } = req.query;
-    let sql = `
-      SELECT s.*, u.username as staff_name FROM shifts s
-      JOIN users u ON u.id = s.user_id
-    `;
+
+    let where = '';
     const params = [];
     if (branch && branch.trim() !== '') {
-      sql += ' WHERE s.branch_name = ?';
+      where = ' WHERE s.branch_name = ?';
       params.push(branch.trim());
     }
-    sql += ' ORDER BY s.id DESC';
-    const shifts = await query(sql, params);
-    res.json(shifts);
+
+    const countSql = `SELECT COUNT(*) as count FROM shifts s JOIN users u ON u.id = s.user_id${where}`;
+    const dataSql = `
+      SELECT s.*, u.username as staff_name FROM shifts s
+      JOIN users u ON u.id = s.user_id${where}
+      ORDER BY s.id DESC LIMIT ? OFFSET ?
+    `;
+    const result = await paginatedQuery(countSql, dataSql, params, page, limit);
+    res.json(result);
   } catch (err) {
     console.error('Admin shifts error:', err);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
 
-app.get('/api/admin/transactions', authenticateToken, requireAdmin, cacheResponse(30), async (req, res) => {
+app.get('/api/admin/transactions', authenticateToken, requireAdmin, async (req, res) => {
   try {
-    const txns = await query(`
+    const page = Math.max(1, parseInt(req.query.page) || 1);
+    const limit = Math.min(200, Math.max(1, parseInt(req.query.limit) || 50));
+
+    const countSql = `SELECT COUNT(*) as count FROM transactions t JOIN shifts s ON s.id = t.shift_id JOIN users u ON u.id = s.user_id`;
+    const dataSql = `
       SELECT t.*, s.branch_name, u.username as staff_name FROM transactions t
       JOIN shifts s ON s.id = t.shift_id
       JOIN users u ON u.id = s.user_id
-      ORDER BY t.id DESC
-    `);
-    res.json(txns);
+      ORDER BY t.id DESC LIMIT ? OFFSET ?
+    `;
+    const result = await paginatedQuery(countSql, dataSql, [], page, limit);
+    res.json(result);
   } catch (err) {
     console.error('Admin transactions error:', err);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
 
-app.get('/api/admin/logs', authenticateToken, requireAdmin, cacheResponse(30), async (req, res) => {
+app.get('/api/admin/logs', authenticateToken, requireAdmin, async (req, res) => {
   try {
-    const logs = await query(`
+    const page = Math.max(1, parseInt(req.query.page) || 1);
+    const limit = Math.min(200, Math.max(1, parseInt(req.query.limit) || 50));
+
+    const countSql = `SELECT COUNT(*) as count FROM activity_logs l JOIN users u ON u.id = l.user_id`;
+    const dataSql = `
       SELECT l.*, u.username FROM activity_logs l
       JOIN users u ON u.id = l.user_id
-      ORDER BY l.id DESC
-    `);
-    res.json(logs);
+      ORDER BY l.id DESC LIMIT ? OFFSET ?
+    `;
+    const result = await paginatedQuery(countSql, dataSql, [], page, limit);
+    res.json(result);
   } catch (err) {
     console.error('Admin logs error:', err);
     res.status(500).json({ error: 'Internal server error' });
@@ -1029,6 +1127,14 @@ app.delete('/api/admin/users/:id', authenticateToken, requireAdmin, async (req, 
     res.status(500).json({ error: 'Internal server error' });
   }
 });
+
+// SPA fallback — serve index.html for non-API, non-file routes
+if (hasDist) {
+  app.get('*', (req, res) => {
+    if (req.path.startsWith('/api/') || req.path.startsWith('/uploads/')) return;
+    res.sendFile(path.join(distDir, 'index.html'));
+  });
+}
 
 app.use((err, _req, res, _next) => {
   if (err instanceof multer.MulterError) {
