@@ -131,20 +131,61 @@ export function DashboardPage() {
 
   if (!currentShift || !summary) {
     return (
-      <div className="min-h-screen flex flex-col">
+      <div className="min-h-screen flex flex-col bg-gradient-to-b from-background to-muted/30">
         <PageHeader title={i18n.t('dash.title')} subtitle={`${user?.username || ''}`} />
         <PageContainer>
-          <div className="flex flex-col items-center justify-center py-16 gap-4">
-            <div className="p-4 rounded-2xl bg-muted/30">
-              <Receipt className="h-12 w-12 text-muted-foreground/30" />
-            </div>
-            <p className="text-sm text-muted-foreground">No shift is currently open</p>
-            <Button onClick={() => navigate('/open-shift')}>
-              <Play className="h-4 w-4 mr-1.5" />
-              Open Shift
-            </Button>
+          <Card className="mb-4">
+            <CardContent className="p-8 flex flex-col items-center text-center gap-4">
+              <div className="p-4 rounded-2xl bg-muted/30">
+                <Receipt className="h-12 w-12 text-muted-foreground/30" />
+              </div>
+              <div>
+                <p className="text-sm font-medium">No shift is currently open</p>
+                <p className="text-xs text-muted-foreground mt-1">Start a shift to begin recording transactions</p>
+              </div>
+              <Button onClick={() => navigate('/open-shift')}>
+                <Play className="h-4 w-4 mr-1.5" />
+                Open Shift
+              </Button>
+            </CardContent>
+          </Card>
+
+          {/* Quick Links */}
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              onClick={() => navigate('/shift-history')}
+              className="flex flex-col items-center gap-1.5 p-3 rounded-2xl bg-blue-50 border border-blue-200 active:scale-95 transition-transform"
+            >
+              <div className="p-2 rounded-xl bg-blue-100">
+                <History className="h-5 w-5 text-blue-600" />
+              </div>
+              <span className="text-[10px] font-semibold text-blue-700">History</span>
+            </button>
+            {isAdmin ? (
+              <button
+                onClick={() => navigate('/admin')}
+                className="flex flex-col items-center gap-1.5 p-3 rounded-2xl bg-purple-50 border border-purple-200 active:scale-95 transition-transform"
+              >
+                <div className="p-2 rounded-xl bg-purple-100">
+                  <Shield className="h-5 w-5 text-purple-600" />
+                </div>
+                <span className="text-[10px] font-semibold text-purple-700">Admin</span>
+              </button>
+            ) : (
+              <button
+                onClick={() => navigate('/password')}
+                className="flex flex-col items-center gap-1.5 p-3 rounded-2xl bg-slate-50 border border-slate-200 active:scale-95 transition-transform"
+              >
+                <div className="p-2 rounded-xl bg-slate-100">
+                  <DollarSign className="h-5 w-5 text-slate-600" />
+                </div>
+                <span className="text-[10px] font-semibold text-slate-700">Settings</span>
+              </button>
+            )}
           </div>
         </PageContainer>
+
+        <BottomNav navigate={navigate} isAdmin={isAdmin} />
       </div>
     )
   }
@@ -384,59 +425,64 @@ export function DashboardPage() {
         </div>
       </PageContainer>
 
-      {/* Bottom Navigation */}
-      <nav className="fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-border/60 safe-area-bottom">
-        <div className="flex items-center justify-around max-w-lg mx-auto px-2">
-          {NAV_ITEMS.map((item) => {
-            const isActive = item.path === '/'
-            if (item.path === 'more') {
-              return (
-                <div key="more" className="relative group">
-                  <button
-                    onClick={() => {}}
-                    className="flex flex-col items-center gap-0.5 py-2.5 px-3 transition-colors"
-                  >
-                    <Menu className="h-5 w-5 text-muted-foreground" />
-                    <span className="text-[10px] text-muted-foreground font-medium">More</span>
-                  </button>
-                  {/* Dropup menu */}
-                  <div className="absolute bottom-full right-0 mb-1 w-44 bg-white rounded-2xl shadow-xl border border-border/60 overflow-hidden hidden group-hover:block">
-                    {isAdmin && (
-                      <button
-                        onClick={() => navigate('/admin')}
-                        className="w-full flex items-center gap-3 px-4 py-3 text-sm hover:bg-muted/50 transition-colors"
-                      >
-                        <Shield className="h-4 w-4 text-purple-600" />
-                        Admin Panel
-                      </button>
-                    )}
+      <BottomNav navigate={navigate} isAdmin={isAdmin} />
+    </div>
+  )
+}
+
+function BottomNav({ navigate, isAdmin }: { navigate: (path: string) => void; isAdmin: boolean }) {
+  return (
+    <nav className="fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-border/60 safe-area-bottom">
+      <div className="flex items-center justify-around max-w-lg mx-auto px-2">
+        {NAV_ITEMS.map((item) => {
+          const isActive = item.path === '/'
+          if (item.path === 'more') {
+            return (
+              <div key="more" className="relative group">
+                <button
+                  onClick={() => {}}
+                  className="flex flex-col items-center gap-0.5 py-2.5 px-3 transition-colors"
+                >
+                  <Menu className="h-5 w-5 text-muted-foreground" />
+                  <span className="text-[10px] text-muted-foreground font-medium">More</span>
+                </button>
+                {/* Dropup menu */}
+                <div className="absolute bottom-full right-0 mb-1 w-44 bg-white rounded-2xl shadow-xl border border-border/60 overflow-hidden hidden group-hover:block">
+                  {isAdmin && (
                     <button
-                      onClick={() => navigate('/password')}
+                      onClick={() => navigate('/admin')}
                       className="w-full flex items-center gap-3 px-4 py-3 text-sm hover:bg-muted/50 transition-colors"
                     >
-                      <DollarSign className="h-4 w-4 text-muted-foreground" />
-                      Change Password
+                      <Shield className="h-4 w-4 text-purple-600" />
+                      Admin Panel
                     </button>
-                  </div>
+                  )}
+                  <button
+                    onClick={() => navigate('/password')}
+                    className="w-full flex items-center gap-3 px-4 py-3 text-sm hover:bg-muted/50 transition-colors"
+                  >
+                    <DollarSign className="h-4 w-4 text-muted-foreground" />
+                    Change Password
+                  </button>
                 </div>
-              )
-            }
-            return (
-              <button
-                key={item.path}
-                onClick={() => navigate(item.path)}
-                className={`flex flex-col items-center gap-0.5 py-2.5 px-3 transition-colors ${
-                  isActive ? 'text-primary' : 'text-muted-foreground hover:text-foreground'
-                }`}
-              >
-                <item.icon className={`h-5 w-5 ${isActive ? 'text-primary' : ''}`} />
-                <span className="text-[10px] font-medium">{item.label}</span>
-              </button>
+              </div>
             )
-          })}
-        </div>
-      </nav>
-    </div>
+          }
+          return (
+            <button
+              key={item.path}
+              onClick={() => navigate(item.path)}
+              className={`flex flex-col items-center gap-0.5 py-2.5 px-3 transition-colors ${
+                isActive ? 'text-primary' : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              <item.icon className={`h-5 w-5 ${isActive ? 'text-primary' : ''}`} />
+              <span className="text-[10px] font-medium">{item.label}</span>
+            </button>
+          )
+        })}
+      </div>
+    </nav>
   )
 }
 

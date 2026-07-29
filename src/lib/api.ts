@@ -9,6 +9,9 @@ import type {
   CloseShiftPayload,
   CreateUserPayload,
   UpdateUserPayload,
+  TelegramSettings,
+  UpdateTelegramSettingsPayload,
+  TestTelegramPayload,
 } from '@/types'
 
 const TOKEN_KEY = 'pos_token'
@@ -111,6 +114,18 @@ export const api = {
 
   deleteUser(id: number) {
     return request<{ ok: boolean }>('DELETE', '/api/admin/users/' + id)
+  },
+
+  getTelegramSettings() {
+    return request<TelegramSettings>('GET', '/api/admin/settings/telegram')
+  },
+
+  updateTelegramSettings(data: UpdateTelegramSettingsPayload) {
+    return request<TelegramSettings>('PUT', '/api/admin/settings/telegram', data)
+  },
+
+  testTelegramSettings(data: TestTelegramPayload) {
+    return request<{ ok: boolean; message: string }>('POST', '/api/admin/settings/telegram/test', data)
   },
 
   changePassword(currentPassword: string, newPassword: string) {

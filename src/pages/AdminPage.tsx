@@ -16,8 +16,8 @@ import { useToast } from "@/hooks/useToast"
 import { ToastContainer } from "@/components/ui/toast"
 import { Modal, ConfirmModal } from "@/components/ui/modal"
 import { Pagination } from "@/components/ui/pagination"
-import type { Shift, Transaction, ActivityLog, User } from "@/types"
-import { Plus, Search, RefreshCw, Shield, Users, Filter } from "lucide-react"
+import type { Shift, Transaction, ActivityLog, User, TelegramSettings } from "@/types"
+import { Plus, Search, RefreshCw, Shield, Users, Filter, Send } from "lucide-react"
 
 const BRANCHES = [
   { value: "", label: "All Branches" },
@@ -27,7 +27,7 @@ const BRANCHES = [
   { value: "កាប់គោ", label: "កាប់គោ" },
 ]
 
-type AdminTab = 'shifts' | 'transactions' | 'logs'
+type AdminTab = 'shifts' | 'transactions' | 'logs' | 'settings'
 
 export function AdminPage() {
   const { user } = useAuth()
@@ -72,6 +72,14 @@ export function AdminPage() {
   const [deleteTarget, setDeleteTarget] = useState<User | null>(null)
   const [deleteLoading, setDeleteLoading] = useState(false)
 
+  // Telegram settings
+  const [tgSettings, setTgSettings] = useState<TelegramSettings | null>(null)
+  const [tgLoading, setTgLoading] = useState(false)
+  const [tgSaving, setTgSaving] = useState(false)
+  const [tgTesting, setTgTesting] = useState(false)
+  const [tgBotTokenInput, setTgBotTokenInput] = useState("")
+  const [tgChatIdInput, setTgChatIdInput] = useState("")
+
   const loadShifts = useCallback(async (page = 1) => {
     setShiftsLoading(true)
     try {
@@ -113,11 +121,23 @@ export function AdminPage() {
     finally { setUsersLoading(false) }
   }, [])
 
+  const loadTelegramSettings = useCallback(async () => {
+    setTgLoading(true)
+    try {
+      const res = await api.getTelegramSettings()
+      setTgSettings(res)
+      setTgChatIdInput(res.chatId || "")
+      setTgBotTokenInput("")
+    } catch { showToast('Failed to load Telegram settings', 'error') }
+    finally { setTgLoading(false) }
+  }, [])
+
   useEffect(() => {
     if (activeTab === 'shifts') loadShifts(1)
     else if (activeTab === 'transactions') loadTxns(1)
     else if (activeTab === 'logs') loadLogs(1)
-  }, [activeTab, loadShifts])
+    else if (activeTab === 'settings') loadTelegramSettings()
+  }, [activeTab, loadShifts, loadTelegramSettings])
 
   const handleBranchFilter = (val: string) => {
     setBranchFilter(val)
@@ -190,6 +210,36 @@ export function AdminPage() {
     }
   }
 
+  const handleSaveTelegramSettings = async () => {
+    const body: Record<string, string> = { chatId: tgChatIdInput.trim() }
+    if (tgBotTokenInput.trim()) body.botToken = tgBotTokenInput.trim()
+    setTgSaving(true)
+    try {
+      const res = await api.updateTelegramSettings(body)
+      setTgSettings(res)
+      setTgBotTokenInput("")
+      showToast(i18n.t('admin.tg.saved'), 'success')
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : i18n.t('admin.tg.err.save'), 'error')
+    } finally {
+      setTgSaving(false)
+    }
+  }
+
+  const handleTestTelegram = async () => {
+    setTgTesting(true)
+    try {
+      const body: Record<string, string> = { chatId: tgChatIdInput.trim() }
+      if (tgBotTokenInput.trim()) body.botToken = tgBotTokenInput.trim()
+      const res = await api.testTelegramSettings(body)
+      showToast(res.message || i18n.t('admin.tg.testOk'), 'success')
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : i18n.t('admin.tg.err.test'), 'error')
+    } finally {
+      setTgTesting(false)
+    }
+  }
+
   const staffCount = users.filter(u => u.role === 'staff').length
   const filteredUsers = users.filter(u =>
     !searchQuery || u.username.toLowerCase().includes(searchQuery.toLowerCase())
@@ -199,6 +249,7 @@ export function AdminPage() {
     { id: 'shifts', label: i18n.t('admin.tab.shifts') },
     { id: 'transactions', label: i18n.t('admin.tab.txns') },
     { id: 'logs', label: i18n.t('admin.tab.logs') },
+    { id: 'settings', label: i18n.t('admin.tab.settings') },
   ]
 
   return (
@@ -483,6 +534,75 @@ export function AdminPage() {
         )}
         {activeTab === 'logs' && (logs.length > 0) && (
           <Pagination page={logsPage} limit={50} total={logsTotal} onPageChange={loadLogs} />
+        )}
+
+        {activeTab === 'settings' && (
+          <Card>
+            <CardContent className="p-4 space-y-4">
+              <div className="flex items-center gap-2">
+                <Send className="h-4 w-4 text-muted-foreground" />
+                <p className="text-sm font-medium">{i18n.t('admin.tg.title')}</p>
+              </div>
+
+              {tgLoading ? (
+                <div className="space-y-2">
+                  <Skeleton className="h-10 w-full" />
+                  <Skeleton className="h-10 w-full" />
+                </div>
+              ) : (
+                <>
+                  <div>
+                    <label className="text-xs font-medium text-muted-foreground block mb-1">
+                      {i18n.t('admin.tg.botToken')}
+                    </label>
+                    <div className="flex items-center gap-2 mb-1">
+                      <Badge variant={tgSettings?.botTokenSet ? 'success' : 'secondary'}>
+                        {tgSettings?.botTokenSet ? i18n.t('admin.tg.configured') : i18n.t('admin.tg.notConfigured')}
+                      </Badge>
+                      {tgSettings?.botTokenSet && (
+                        <span className="text-xs text-muted-foreground font-mono">{tgSettings.botTokenPreview}</span>
+                      )}
+                    </div>
+                    <Input
+                      type="password"
+                      value={tgBotTokenInput}
+                      onChange={e => setTgBotTokenInput(e.target.value)}
+                      placeholder={tgSettings?.botTokenSet ? i18n.t('admin.tg.botToken.ph.change') : i18n.t('admin.tg.botToken.ph.new')}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-medium text-muted-foreground block mb-1">
+                      {i18n.t('admin.tg.chatId')}
+                    </label>
+                    <Input
+                      value={tgChatIdInput}
+                      onChange={e => setTgChatIdInput(e.target.value)}
+                      placeholder={i18n.t('admin.tg.chatId.ph')}
+                    />
+                  </div>
+
+                  <div className="flex gap-2 justify-end pt-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleTestTelegram}
+                      disabled={tgTesting || !tgChatIdInput.trim()}
+                    >
+                      {tgTesting ? i18n.t('admin.tg.testing') : i18n.t('admin.tg.test')}
+                    </Button>
+                    <Button
+                      size="sm"
+                      onClick={handleSaveTelegramSettings}
+                      disabled={tgSaving}
+                    >
+                      {tgSaving ? i18n.t('admin.tg.saving') : i18n.t('admin.tg.save')}
+                    </Button>
+                  </div>
+                </>
+              )}
+            </CardContent>
+          </Card>
         )}
 
         <div className="mt-4">

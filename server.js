@@ -20,8 +20,12 @@ if (!JWT_SECRET) {
   console.error('FATAL: JWT_SECRET environment variable is required');
   process.exit(1);
 }
-const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
-const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID;
+// Telegram config is DB-backed (see `settings` table) so it can be managed from the Admin UI
+// without redeploying; env vars only seed the initial defaults on first run.
+const telegramConfig = {
+  botToken: process.env.TELEGRAM_BOT_TOKEN || '',
+  chatId: process.env.TELEGRAM_CHAT_ID || '',
+};
 
 app.use(cors());
 app.use(express.json());
@@ -124,7 +128,39 @@ async function initSchema() {
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
   `);
 
+  await execute(`
+    CREATE TABLE IF NOT EXISTS settings (
+      setting_key VARCHAR(100) PRIMARY KEY,
+      setting_value TEXT,
+      updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+  `);
+
   console.log('Database schema initialized');
+}
+
+// Populates the in-memory telegramConfig cache from the `settings` table, falling back to
+// whatever env-var defaults are already in telegramConfig when no row exists yet.
+async function loadTelegramConfig() {
+  const rows = await query(
+    "SELECT setting_key, setting_value FROM settings WHERE setting_key IN ('telegram_bot_token', 'telegram_chat_id')"
+  );
+  for (const row of rows) {
+    if (row.setting_key === 'telegram_bot_token' && row.setting_value) {
+      telegramConfig.botToken = row.setting_value;
+    }
+    if (row.setting_key === 'telegram_chat_id' && row.setting_value) {
+      telegramConfig.chatId = row.setting_value;
+    }
+  }
+}
+
+async function saveTelegramSetting(key, value) {
+  await execute(
+    'INSERT INTO settings (setting_key, setting_value) VALUES (?, ?) ' +
+    'ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)',
+    [key, value]
+  );
 }
 
 async function seedSampleData() {
@@ -354,7 +390,7 @@ function escapeMarkdown(text) {
 }
 
 async function sendTelegramPhoto(chatId, photoPath, caption, parseMode = 'MarkdownV2') {
-  if (!TELEGRAM_BOT_TOKEN || !chatId) {
+  if (!telegramConfig.botToken || !chatId) {
     console.warn('Telegram not configured, skipping photo send');
     return;
   }
@@ -366,7 +402,7 @@ async function sendTelegramPhoto(chatId, photoPath, caption, parseMode = 'Markdo
     if (parseMode) form.append('parse_mode', parseMode);
 
     const response = await axios.post(
-      `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendPhoto`,
+      `https://api.telegram.org/bot${telegramConfig.botToken}/sendPhoto`,
       form,
       { headers: form.getHeaders() }
     );
@@ -379,7 +415,7 @@ async function sendTelegramPhoto(chatId, photoPath, caption, parseMode = 'Markdo
 }
 
 async function sendTelegramShiftOpenAlert(shift, userId) {
-  if (!TELEGRAM_BOT_TOKEN || !TELEGRAM_CHAT_ID) {
+  if (!telegramConfig.botToken || !telegramConfig.chatId) {
     console.warn('Telegram not configured — skipping shift open alert');
     return;
   }
@@ -410,11 +446,11 @@ async function sendTelegramShiftOpenAlert(shift, userId) {
     }
 
     if (photoPath) {
-      await sendTelegramPhoto(TELEGRAM_CHAT_ID, photoPath, text, null);
+      await sendTelegramPhoto(telegramConfig.chatId, photoPath, text, null);
     } else {
       await axios.post(
-        `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`,
-        { chat_id: TELEGRAM_CHAT_ID, text, disable_web_page_preview: true }
+        `https://api.telegram.org/bot${telegramConfig.botToken}/sendMessage`,
+        { chat_id: telegramConfig.chatId, text, disable_web_page_preview: true }
       );
     }
     await logActivity(userId, 'Telegram notification sent', `Sent shift open alert for branch "${shift.branch_name}" via Telegram`);
@@ -424,7 +460,7 @@ async function sendTelegramShiftOpenAlert(shift, userId) {
 }
 
 async function sendTelegramReport(shiftId, userId) {
-  if (!TELEGRAM_BOT_TOKEN || !TELEGRAM_CHAT_ID) {
+  if (!telegramConfig.botToken || !telegramConfig.chatId) {
     console.warn('Telegram bot not configured — skipping notification');
     return;
   }
@@ -535,10 +571,10 @@ async function sendTelegramReport(shiftId, userId) {
 
     if (closingPhotoPath) {
       // Send as photo with plain-text caption (dynamic report content is fragile under MarkdownV2)
-      await sendTelegramPhoto(TELEGRAM_CHAT_ID, closingPhotoPath, text, null);
+      await sendTelegramPhoto(telegramConfig.chatId, closingPhotoPath, text, null);
     } else {
-      await axios.post(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
-        chat_id: TELEGRAM_CHAT_ID,
+      await axios.post(`https://api.telegram.org/bot${telegramConfig.botToken}/sendMessage`, {
+        chat_id: telegramConfig.chatId,
         text,
         disable_web_page_preview: false
       });
@@ -619,7 +655,7 @@ app.put('/api/auth/password', authenticateToken, async (req, res) => {
 });
 
 async function sendTelegramTransactionAlert(txn, shift, userId) {
-  if (!TELEGRAM_BOT_TOKEN || !TELEGRAM_CHAT_ID) {
+  if (!telegramConfig.botToken || !telegramConfig.chatId) {
     console.warn('Telegram not configured — skipping transaction alert');
     return;
   }
@@ -669,12 +705,12 @@ async function sendTelegramTransactionAlert(txn, shift, userId) {
     console.log('MESSAGE TEXT:', JSON.stringify(caption));
 
     if (photoPath) {
-      await sendTelegramPhoto(TELEGRAM_CHAT_ID, photoPath, caption, null);
+      await sendTelegramPhoto(telegramConfig.chatId, photoPath, caption, null);
     } else {
       const resp = await axios.post(
-        `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`,
+        `https://api.telegram.org/bot${telegramConfig.botToken}/sendMessage`,
         {
-          chat_id: TELEGRAM_CHAT_ID,
+          chat_id: telegramConfig.chatId,
           text: caption,
           disable_web_page_preview: false
         }
@@ -1128,6 +1164,84 @@ app.delete('/api/admin/users/:id', authenticateToken, requireAdmin, async (req, 
   }
 });
 
+app.get('/api/admin/settings/telegram', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const token = telegramConfig.botToken || '';
+    res.json({
+      botTokenSet: !!token,
+      botTokenPreview: token ? `••••${token.slice(-4)}` : '',
+      chatId: telegramConfig.chatId || '',
+    });
+  } catch (err) {
+    console.error('Get telegram settings error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+app.put('/api/admin/settings/telegram', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const { botToken, chatId } = req.body;
+    const changes = [];
+
+    if (typeof botToken === 'string' && botToken.trim()) {
+      const trimmed = botToken.trim();
+      await saveTelegramSetting('telegram_bot_token', trimmed);
+      telegramConfig.botToken = trimmed;
+      changes.push('bot token');
+    }
+
+    if (typeof chatId === 'string') {
+      const trimmed = chatId.trim();
+      await saveTelegramSetting('telegram_chat_id', trimmed);
+      telegramConfig.chatId = trimmed;
+      changes.push('chat id');
+    }
+
+    if (changes.length === 0) {
+      return res.status(400).json({ error: 'No changes provided' });
+    }
+
+    await logActivity(req.user.id, 'Updated Telegram settings', `Updated ${changes.join(' and ')}`);
+
+    const token = telegramConfig.botToken || '';
+    res.json({
+      botTokenSet: !!token,
+      botTokenPreview: token ? `••••${token.slice(-4)}` : '',
+      chatId: telegramConfig.chatId || '',
+    });
+  } catch (err) {
+    console.error('Update telegram settings error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+app.post('/api/admin/settings/telegram/test', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const bodyToken = typeof req.body.botToken === 'string' ? req.body.botToken.trim() : '';
+    const bodyChatId = typeof req.body.chatId === 'string' ? req.body.chatId.trim() : '';
+    const botToken = bodyToken || telegramConfig.botToken;
+    const chatId = bodyChatId || telegramConfig.chatId;
+
+    if (!botToken || !chatId) {
+      return res.status(400).json({ error: 'Bot token and chat ID are required to send a test message' });
+    }
+
+    const text = `✅ Test message from POS Mini App\nSent by: ${req.user.username}\nTime: ${new Date().toISOString().replace('T', ' ').slice(0, 19)}`;
+
+    await axios.post(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+      chat_id: chatId,
+      text,
+    });
+
+    await logActivity(req.user.id, 'Telegram test message sent', `Sent test message to chat_id=${chatId}`);
+    res.json({ ok: true, message: 'Test message sent successfully' });
+  } catch (err) {
+    const description = err.response && err.response.data && err.response.data.description;
+    console.error('Telegram test message error:', description || err.message);
+    res.status(400).json({ error: description || 'Failed to send test message' });
+  }
+});
+
 // SPA fallback — serve index.html for non-API, non-file routes
 if (hasDist) {
   app.get('*', (req, res) => {
@@ -1150,11 +1264,12 @@ async function start() {
     await initDB();
     console.log('MySQL connected');
     await initSchema();
+    await loadTelegramConfig();
     await seedSampleData();
     await connectRedis();
 
-    if (TELEGRAM_BOT_TOKEN && TELEGRAM_CHAT_ID) {
-      console.log(`Telegram bot configured: chat_id=${TELEGRAM_CHAT_ID}`);
+    if (telegramConfig.botToken && telegramConfig.chatId) {
+      console.log(`Telegram bot configured: chat_id=${telegramConfig.chatId}`);
     } else {
       console.warn('Telegram bot NOT configured — messages will be skipped');
     }

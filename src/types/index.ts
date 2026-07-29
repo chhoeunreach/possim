@@ -81,3 +81,19 @@ export interface UpdateUserPayload {
   password?: string
   role?: 'staff' | 'admin'
 }
+
+export interface TelegramSettings {
+  botTokenSet: boolean
+  botTokenPreview: string
+  chatId: string
+}
+
+export interface UpdateTelegramSettingsPayload {
+  botToken?: string
+  chatId?: string
+}
+
+export interface TestTelegramPayload {
+  botToken?: string
+  chatId?: string
+}
