@@ -385,11 +385,43 @@ function formatCurrency(amount, currency) {
   return `៛${Number(amount).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
 }
 
-function escapeMarkdown(text) {
-  return String(text).replace(/[_*[\]()~`>#+\-=|{}.!]/g, '\\$&');
+function escapeHtml(text) {
+  return String(text)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
 }
 
-async function sendTelegramPhoto(chatId, photoPath, caption, parseMode = 'MarkdownV2') {
+const TG_DIVIDER = '━━━━━━━━━━━━';
+
+function formatSigned(amount, currency) {
+  const v = Number(amount) || 0;
+  const sign = v > 0 ? '+' : (v < 0 ? '-' : '');
+  return sign + formatCurrency(Math.abs(v), currency);
+}
+
+function fmtBreakdown(cash, bank, currency) {
+  const c = Number(cash) || 0;
+  const b = Number(bank) || 0;
+  if (c > 0 && b > 0) return `Cash ${formatCurrency(c, currency)} · Bank ${formatCurrency(b, currency)}`;
+  if (c > 0) return `Cash ${formatCurrency(c, currency)}`;
+  if (b > 0) return `Bank ${formatCurrency(b, currency)}`;
+  return '';
+}
+
+function fmtDateTime(ts) {
+  if (!ts) return '—';
+  const s = String(ts);
+  return s.length >= 16 ? `${s.slice(0, 10)} ${s.slice(11, 16)}` : s;
+}
+
+function fmtTime(ts) {
+  if (!ts) return '—';
+  const s = String(ts);
+  return s.length >= 16 ? s.slice(11, 16) : s;
+}
+
+async function sendTelegramPhoto(chatId, photoPath, caption, parseMode = 'HTML') {
   if (!telegramConfig.botToken || !chatId) {
     console.warn('Telegram not configured, skipping photo send');
     return;
@@ -423,13 +455,16 @@ async function sendTelegramShiftOpenAlert(shift, userId) {
     const staffUser = await queryOne('SELECT username FROM users WHERE id = ?', [shift.user_id]);
     const staffName = staffUser ? staffUser.username : 'Unknown';
     const text = [
-      `🟢 *Shift Opened \\- ${escapeMarkdown(shift.branch_name)}*`,
-      '',
-      `🏢 *Branch:* ${escapeMarkdown(shift.branch_name)}`,
-      `👤 *Staff:* ${escapeMarkdown(staffName)}`,
-      `💰 *Opening USD:* ${escapeMarkdown(formatCurrency(shift.opening_usd, 'USD'))}`,
-      `💰 *Opening KHR:* ${escapeMarkdown(formatCurrency(shift.opening_khr, 'KHR'))}`,
-      `🕐 ${escapeMarkdown(shift.start_time)}`
+      `🟢 <b>SHIFT OPENED</b>`,
+      TG_DIVIDER,
+      `🏢 <b>${escapeHtml(shift.branch_name)}</b>`,
+      `👤 ${escapeHtml(staffName)}`,
+      TG_DIVIDER,
+      `💰 <b>OPENING</b>`,
+      `<code>USD  ${escapeHtml(formatCurrency(shift.opening_usd, 'USD'))}</code>`,
+      `<code>KHR  ${escapeHtml(formatCurrency(shift.opening_khr, 'KHR'))}</code>`,
+      TG_DIVIDER,
+      `🕐 <code>${escapeHtml(fmtDateTime(shift.start_time))}</code>`
     ].join('\n');
 
     let photoPath = null;
@@ -446,11 +481,11 @@ async function sendTelegramShiftOpenAlert(shift, userId) {
     }
 
     if (photoPath) {
-      await sendTelegramPhoto(telegramConfig.chatId, photoPath, text, null);
+      await sendTelegramPhoto(telegramConfig.chatId, photoPath, text, 'HTML');
     } else {
       await axios.post(
         `https://api.telegram.org/bot${telegramConfig.botToken}/sendMessage`,
-        { chat_id: telegramConfig.chatId, text, disable_web_page_preview: true }
+        { chat_id: telegramConfig.chatId, text, parse_mode: 'HTML', disable_web_page_preview: true }
       );
     }
     await logActivity(userId, 'Telegram notification sent', `Sent shift open alert for branch "${shift.branch_name}" via Telegram`);
@@ -510,49 +545,55 @@ async function sendTelegramReport(shiftId, userId) {
 
     const invoiceLines = txns
       .filter(t => t.invoice_url)
-      .map((t, i) => `• [View Invoice #${i + 1} — ${escapeMarkdown(formatCurrency(t.amount, t.currency))}](${escapeMarkdown(t.invoice_url)})`);
+      .map((t, i) => `📎 <a href="${escapeHtml(t.invoice_url)}">Invoice #${i + 1} · ${escapeHtml(formatCurrency(t.amount, t.currency))}</a>`);
+
+    const diffUSD = (parseFloat(shift.closing_usd) || 0) - expectedUSD;
+    const diffKHR = (parseFloat(shift.closing_khr) || 0) - expectedKHR;
+    const netUSD = totalInflowUSD - totalOutflowUSD;
+    const netKHR = totalInflowKHR - totalOutflowKHR;
+
+    const bdUSDIn = fmtBreakdown(inflowUSD.Cash, inflowUSD.Bank, 'USD');
+    const bdKHRIn = fmtBreakdown(inflowKHR.Cash, inflowKHR.Bank, 'KHR');
+    const bdUSDOut = fmtBreakdown(outflowUSD.Cash, outflowUSD.Bank, 'USD');
+    const bdKHROut = fmtBreakdown(outflowKHR.Cash, outflowKHR.Bank, 'KHR');
 
     const msg = [
-      `📋 *Shift Report \\- ${escapeMarkdown(shift.branch_name)}*`,
-      '',
-      `🏢 *Branch:* ${escapeMarkdown(shift.branch_name)}`,
-      `👤 *Staff:* ${escapeMarkdown(shift.staff_name)}`,
-      `🕐 *Start:* ${escapeMarkdown(shift.start_time)}`,
-      `🕐 *End:* ${escapeMarkdown(shift.end_time || 'Ongoing')}`,
-      `⏱ *Duration:* ${escapeMarkdown(duration)}`,
-      '',
-      '━━━━━━━━━━━━━━━━━━━',
-      '',
-      `💰 *Opening Balances*`,
-      `   ${escapeMarkdown(formatCurrency(shift.opening_usd, 'USD'))} \\(Cash\\)`,
-      `   ${escapeMarkdown(formatCurrency(shift.opening_khr, 'KHR'))} \\(Cash\\)`,
-      '',
-      `📈 *Total Inflows*`,
-      `   USD: ${escapeMarkdown(formatCurrency(totalInflowUSD, 'USD'))} \\(Cash: ${escapeMarkdown(formatCurrency(inflowUSD.Cash, 'USD'))} \\| Bank: ${escapeMarkdown(formatCurrency(inflowUSD.Bank, 'USD'))}\\)`,
-      `   KHR: ${escapeMarkdown(formatCurrency(totalInflowKHR, 'KHR'))} \\(Cash: ${escapeMarkdown(formatCurrency(inflowKHR.Cash, 'KHR'))} \\| Bank: ${escapeMarkdown(formatCurrency(inflowKHR.Bank, 'KHR'))}\\)`,
-      '',
-      `📉 *Total Outflows*`,
-      `   USD: ${escapeMarkdown(formatCurrency(totalOutflowUSD, 'USD'))} \\(Cash: ${escapeMarkdown(formatCurrency(outflowUSD.Cash, 'USD'))} \\| Bank: ${escapeMarkdown(formatCurrency(outflowUSD.Bank, 'USD'))}\\)`,
-      `   KHR: ${escapeMarkdown(formatCurrency(totalOutflowKHR, 'KHR'))} \\(Cash: ${escapeMarkdown(formatCurrency(outflowKHR.Cash, 'KHR'))} \\| Bank: ${escapeMarkdown(formatCurrency(outflowKHR.Bank, 'KHR'))}\\)`,
-      '',
-      '━━━━━━━━━━━━━━━━━━━',
-      '',
-      `💵 *Expected Closing*`,
-      `   USD: ${escapeMarkdown(formatCurrency(expectedUSD, 'USD'))}`,
-      `   KHR: ${escapeMarkdown(formatCurrency(expectedKHR, 'KHR'))}`,
-      '',
-      `✅ *Actual Closing*`,
-      `   USD: ${escapeMarkdown(formatCurrency(shift.closing_usd || 0, 'USD'))}`,
-      `   KHR: ${escapeMarkdown(formatCurrency(shift.closing_khr || 0, 'KHR'))}`,
+      `📋 <b>SHIFT REPORT</b>`,
+      TG_DIVIDER,
+      `🏢 <b>${escapeHtml(shift.branch_name)}</b>`,
+      `👤 ${escapeHtml(shift.staff_name)} · ⏱ <code>${escapeHtml(duration)}</code>`,
+      `🕐 <code>${escapeHtml(fmtTime(shift.start_time))}</code> → <code>${escapeHtml(fmtTime(shift.end_time || ''))}</code>`,
+      TG_DIVIDER,
+      `💰 <b>OPENING</b>`,
+      `<code>USD  ${escapeHtml(formatCurrency(shift.opening_usd, 'USD'))}</code>`,
+      `<code>KHR  ${escapeHtml(formatCurrency(shift.opening_khr, 'KHR'))}</code>`,
+      TG_DIVIDER,
+      `📥 <b>INFLOWS</b>`,
+      `<code>USD  ${escapeHtml(formatCurrency(totalInflowUSD, 'USD'))}</code>`,
+      ...(bdUSDIn ? [`     ${escapeHtml(bdUSDIn)}`] : []),
+      `<code>KHR  ${escapeHtml(formatCurrency(totalInflowKHR, 'KHR'))}</code>`,
+      ...(bdKHRIn ? [`     ${escapeHtml(bdKHRIn)}`] : []),
+      TG_DIVIDER,
+      `📤 <b>OUTFLOWS</b>`,
+      `<code>USD  ${escapeHtml(formatCurrency(totalOutflowUSD, 'USD'))}</code>`,
+      ...(bdUSDOut ? [`     ${escapeHtml(bdUSDOut)}`] : []),
+      `<code>KHR  ${escapeHtml(formatCurrency(totalOutflowKHR, 'KHR'))}</code>`,
+      ...(bdKHROut ? [`     ${escapeHtml(bdKHROut)}`] : []),
+      TG_DIVIDER,
+      `🎯 <b>CLOSING</b>`,
+      `<code>Exp   ${escapeHtml(formatCurrency(expectedUSD, 'USD'))} · ${escapeHtml(formatCurrency(expectedKHR, 'KHR'))}</code>`,
+      `<code>Act   ${escapeHtml(formatCurrency(shift.closing_usd || 0, 'USD'))} · ${escapeHtml(formatCurrency(shift.closing_khr || 0, 'KHR'))}</code>`,
+      `<code>Diff  ${escapeHtml(formatSigned(diffUSD, 'USD'))} · ${escapeHtml(formatSigned(diffKHR, 'KHR'))}</code>`,
     ];
 
     if (invoiceLines.length > 0) {
-      msg.push('');
-      msg.push('━━━━━━━━━━━━━━━━━━━');
-      msg.push('');
-      msg.push('📎 *Invoice Attachments*');
+      msg.push(TG_DIVIDER);
+      msg.push(`📎 <b>INVOICES</b>`);
       msg.push(...invoiceLines);
     }
+
+    msg.push(TG_DIVIDER);
+    msg.push(`📊 <b>Net</b> ${escapeHtml(formatSigned(netUSD, 'USD'))} · ${escapeHtml(formatSigned(netKHR, 'KHR'))}`);
 
     const text = msg.join('\n');
 
@@ -570,12 +611,12 @@ async function sendTelegramReport(shiftId, userId) {
     }
 
     if (closingPhotoPath) {
-      // Send as photo with plain-text caption (dynamic report content is fragile under MarkdownV2)
-      await sendTelegramPhoto(telegramConfig.chatId, closingPhotoPath, text, null);
+      await sendTelegramPhoto(telegramConfig.chatId, closingPhotoPath, text, 'HTML');
     } else {
       await axios.post(`https://api.telegram.org/bot${telegramConfig.botToken}/sendMessage`, {
         chat_id: telegramConfig.chatId,
         text,
+        parse_mode: 'HTML',
         disable_web_page_preview: false
       });
     }
@@ -661,7 +702,7 @@ async function sendTelegramTransactionAlert(txn, shift, userId) {
   }
   try {
     const sign = txn.type === 'inflow' ? '📈' : '📉';
-    const label = txn.type === 'inflow' ? 'Inflow' : 'Outflow';
+    const label = txn.type === 'inflow' ? 'INFLOW' : 'OUTFLOW';
     const branchName = shift && shift.branch_name ? shift.branch_name : 'N/A';
     const staffName = shift && shift.staff_name ? shift.staff_name : 'N/A';
     const amountStr = formatCurrency(txn.amount, txn.currency);
@@ -669,20 +710,20 @@ async function sendTelegramTransactionAlert(txn, shift, userId) {
     const createdStr = txn.created_at || new Date().toISOString().replace('T', ' ').slice(0, 19);
 
     const lines = [
-      `${sign} *${escapeMarkdown(label)} \\- ${escapeMarkdown(branchName)}*`,
-      '',
-      `🏢 *Branch:* ${escapeMarkdown(branchName)}`,
-      `👤 *Staff:* ${escapeMarkdown(staffName)}`,
-      `💰 *Amount:* ${escapeMarkdown(amountStr)} \\(${escapeMarkdown(txn.currency)}\\)`,
-      `💳 *Method:* ${escapeMarkdown(methodStr)}`
+      `${sign} <b>${label}</b>`,
+      TG_DIVIDER,
+      `🏢 <b>${escapeHtml(branchName)}</b>`,
+      `💰 <code>${escapeHtml(amountStr)}</code> · 💳 ${escapeHtml(methodStr)}`,
+      `👤 ${escapeHtml(staffName)}`
     ];
 
     if (Number(txn.cost) > 0) {
       const costStr = formatCurrency(txn.cost, txn.currency);
-      lines.push(`💸 *Cost:* ${escapeMarkdown(costStr)} \\(${escapeMarkdown(txn.currency)}\\)`);
+      lines.push(`💸 <b>Cost:</b> <code>${escapeHtml(costStr)}</code>`);
     }
 
-    lines.push(`🕐 ${escapeMarkdown(createdStr)}`);
+    lines.push(TG_DIVIDER);
+    lines.push(`🕐 <code>${escapeHtml(fmtDateTime(createdStr))}</code>`);
 
     const caption = lines.join('\n');
 
@@ -705,13 +746,14 @@ async function sendTelegramTransactionAlert(txn, shift, userId) {
     console.log('MESSAGE TEXT:', JSON.stringify(caption));
 
     if (photoPath) {
-      await sendTelegramPhoto(telegramConfig.chatId, photoPath, caption, null);
+      await sendTelegramPhoto(telegramConfig.chatId, photoPath, caption, 'HTML');
     } else {
       const resp = await axios.post(
         `https://api.telegram.org/bot${telegramConfig.botToken}/sendMessage`,
         {
           chat_id: telegramConfig.chatId,
           text: caption,
+          parse_mode: 'HTML',
           disable_web_page_preview: false
         }
       );
@@ -1226,11 +1268,17 @@ app.post('/api/admin/settings/telegram/test', authenticateToken, requireAdmin, a
       return res.status(400).json({ error: 'Bot token and chat ID are required to send a test message' });
     }
 
-    const text = `✅ Test message from POS Mini App\nSent by: ${req.user.username}\nTime: ${new Date().toISOString().replace('T', ' ').slice(0, 19)}`;
+    const text = [
+      `✅ <b>TEST MESSAGE</b>`,
+      TG_DIVIDER,
+      `👤 Sent by: <b>${escapeHtml(req.user.username)}</b>`,
+      `🕐 <code>${escapeHtml(fmtDateTime(new Date().toISOString().replace('T', ' ').slice(0, 19)))}</code>`
+    ].join('\n');
 
     await axios.post(`https://api.telegram.org/bot${botToken}/sendMessage`, {
       chat_id: chatId,
       text,
+      parse_mode: 'HTML',
     });
 
     await logActivity(req.user.id, 'Telegram test message sent', `Sent test message to chat_id=${chatId}`);
